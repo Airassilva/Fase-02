@@ -1,4 +1,4 @@
-HELP.md
+tech-challenge-biblioteca/biblioteca-nucleo/HELP.md
 target/
 .mvn/
 !**/src/main/**/target/
