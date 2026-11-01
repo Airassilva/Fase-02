@@ -1,4 +1,82 @@
 package dev.aira.bibliotecanucleo.livro.adapter.in.web;
 
+import dev.aira.bibliotecanucleo.livro.adapter.in.web.dto.LivroRequest;
+import dev.aira.bibliotecanucleo.livro.adapter.in.web.dto.LivroResponse;
+import dev.aira.bibliotecanucleo.livro.adapter.in.web.dto.LivroUpdateRequest;
+import dev.aira.bibliotecanucleo.livro.application.port.in.AtualizarLivroUseCase;
+import dev.aira.bibliotecanucleo.livro.application.port.in.BuscarLivrosUseCase;
+import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase;
+import dev.aira.bibliotecanucleo.livro.application.port.in.DevolverExemplarUseCase;
+import dev.aira.bibliotecanucleo.livro.application.port.in.ExcluirLivroUseCase;
+import dev.aira.bibliotecanucleo.livro.application.port.in.ReservarExemplarUseCase;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("api/livros")
 public class LivroController {
+
+    private final CadastrarLivroUseCase cadastrarLivro;
+    private final BuscarLivrosUseCase buscarLivrosUseCase;
+    private final AtualizarLivroUseCase atualizarLivroUseCase;
+    private final ExcluirLivroUseCase excluirLivroUseCase;
+    private final ReservarExemplarUseCase reservarExemplarUseCase;
+    private final DevolverExemplarUseCase devolverExemplarUseCase;
+    private final LivroWebMapper mapper;
+
+    @PostMapping
+    public ResponseEntity<LivroResponse> cadastrarLivro(@Valid @RequestBody LivroRequest livroRequest) {
+        var livro = cadastrarLivro.cadastrarLivro(mapper.toCommand(livroRequest));
+        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(livro));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<LivroResponse>> buscarLivros() {
+        var livros = buscarLivrosUseCase.buscarLivros();
+        return ResponseEntity.ok().body(mapper.toResponseList(livros));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<LivroResponse> buscarLivroPorId(@PathVariable UUID id) {
+        var livro = buscarLivrosUseCase.buscarLivroPorId(id);
+        return ResponseEntity.ok().body(mapper.toResponse(livro));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<LivroResponse> atualizarLivro(@PathVariable UUID id, @Valid @RequestBody LivroUpdateRequest livroRequest) {
+        var livro = atualizarLivroUseCase.atualizarLivro(id, livroRequest.quantidadeTotal(), livroRequest.descricao());
+        return ResponseEntity.ok().body(mapper.toResponse(livro));
+    }
+
+    @PutMapping("{id}/reservar")
+    public ResponseEntity<LivroResponse> reservarExemplar(@PathVariable UUID id) {
+        var livro = reservarExemplarUseCase.reservarExemplar(id);
+        return ResponseEntity.ok().body(mapper.toResponse(livro));
+    }
+
+    @PutMapping("{id}/devolver")
+    public ResponseEntity<LivroResponse> devolverExemplar(@PathVariable UUID id) {
+        var livro = devolverExemplarUseCase.devolverExemplar(id);
+        return ResponseEntity.ok().body(mapper.toResponse(livro));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> excluirLivro(@PathVariable UUID id) {
+        excluirLivroUseCase.excluirLivro(id);
+        return ResponseEntity.noContent().build();
+    }
 }

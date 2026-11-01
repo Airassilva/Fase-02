@@ -1,0 +1,136 @@
+package dev.aira.bibliotecanucleo.livro.application.service;
+
+import dev.aira.bibliotecanucleo.livro.application.exception.LivroJaCadastradoException;
+import dev.aira.bibliotecanucleo.livro.application.exception.LivroNaoEncontradoException;
+import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase.CadastrarLivroCommand;
+import dev.aira.bibliotecanucleo.livro.application.port.out.LivroRepositoryPort;
+import dev.aira.bibliotecanucleo.livro.domain.model.Isbn;
+import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+
+class LivroServiceTest {
+    private LivroRepositoryPort repository;
+    private LivroService service;
+
+    @BeforeEach
+    void setUp() {
+        repository = mock(LivroRepositoryPort.class);
+        service = new LivroService(repository);
+    }
+
+    @Test
+    void cadastraLivroQuandoIsbnAindaNaoExiste() {
+        CadastrarLivroCommand command = command();
+        when(repository.existePorIsbn(any(Isbn.class))).thenReturn(false);
+        when(repository.salvar(any(Livro.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Livro resultado = service.cadastrarLivro(command);
+
+        assertEquals(command.titulo(), resultado.getTitulo());
+        assertEquals(command.autor(), resultado.getAutor());
+        assertEquals(command.quantidadeTotal(), resultado.getQuantidadeDisponivel());
+        verify(repository).salvar(any(Livro.class));
+    }
+
+    @Test
+    void rejeitaCadastroComIsbnDuplicado() {
+        CadastrarLivroCommand command = command();
+        when(repository.existePorIsbn(any(Isbn.class))).thenReturn(true);
+
+        assertThrows(LivroJaCadastradoException.class, () -> service.cadastrarLivro(command));
+
+        verify(repository, never()).salvar(any(Livro.class));
+    }
+
+    @Test
+    void atualizaLivroExistente() {
+        Livro livro = livro();
+        when(repository.buscarPorId(livro.getId())).thenReturn(livro);
+        when(repository.salvar(livro)).thenReturn(livro);
+
+        Livro resultado = service.atualizarLivro(livro.getId(), 5, "Descrição atualizada");
+
+        assertEquals(5, resultado.getQuantidadeTotal());
+        assertEquals("Descrição atualizada", resultado.getDescricao());
+        verify(repository).salvar(livro);
+    }
+
+    @Test
+    void listaLivros() {
+        List<Livro> livros = List.of(livro());
+        when(repository.buscarTodos()).thenReturn(livros);
+
+        assertEquals(livros, service.buscarLivros());
+    }
+
+    @Test
+    void buscaLivroPorId() {
+        Livro livro = livro();
+        when(repository.buscarPorId(livro.getId())).thenReturn(livro);
+
+        assertEquals(livro, service.buscarLivroPorId(livro.getId()));
+    }
+
+    @Test
+    void reservaExemplarDoLivro() {
+        Livro livro = livro();
+        when(repository.buscarPorId(livro.getId())).thenReturn(livro);
+        when(repository.salvar(livro)).thenReturn(livro);
+
+        Livro resultado = service.reservarExemplar(livro.getId());
+
+        assertEquals(1, resultado.getQuantidadeDisponivel());
+        verify(repository).salvar(livro);
+    }
+
+    @Test
+    void devolveExemplarDoLivro() {
+        Livro livro = Livro.reconstituir(UUID.randomUUID(), "Título", "Autor", Isbn.de("9780306406157"),
+                2, 1, "Descrição válida");
+        when(repository.buscarPorId(livro.getId())).thenReturn(livro);
+        when(repository.salvar(livro)).thenReturn(livro);
+
+        Livro resultado = service.devolverExemplar(livro.getId());
+
+        assertEquals(2, resultado.getQuantidadeDisponivel());
+        verify(repository).salvar(livro);
+    }
+
+    @Test
+    void excluiLivro() {
+        UUID id = UUID.randomUUID();
+
+        service.excluirLivro(id);
+
+        verify(repository).excluir(id);
+    }
+
+    @Test
+    void propagaLivroNaoEncontradoDuranteBuscaEAtualizacao() {
+        UUID id = UUID.randomUUID();
+        when(repository.buscarPorId(id)).thenThrow(new LivroNaoEncontradoException(id));
+
+        assertThrows(LivroNaoEncontradoException.class, () -> service.buscarLivroPorId(id));
+        assertThrows(LivroNaoEncontradoException.class, () -> service.atualizarLivro(id, 1, "Descrição válida"));
+    }
+
+    private CadastrarLivroCommand command() {
+        return new CadastrarLivroCommand("Título", "Autor", "9780306406157", 2, "Descrição válida");
+    }
+
+    private Livro livro() {
+        return Livro.cadastrar("Título", "Autor", Isbn.de("9780306406157"), 2, "Descrição válida");
+    }
+}

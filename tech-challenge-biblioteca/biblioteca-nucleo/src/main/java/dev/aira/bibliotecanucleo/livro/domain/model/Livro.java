@@ -35,21 +35,24 @@ public class Livro {
         return new Livro(id, titulo, autor, isbn, quantidadeTotal, quantidadeDisponivel, descricao);
     }
 
-    public void atualizar(String titulo, String autor, Isbn isbn, int quantidadeTotal, String descricao) {
-        int quantidadeEmprestada = this.quantidadeTotal - this.quantidadeDisponivel;
-        if (quantidadeTotal < 1 || quantidadeTotal < quantidadeEmprestada) {
+    public void atualizar(int novaQuantidadeTotal, String novaDescricao) {
+        if (novaDescricao == null || novaDescricao.isBlank()) {
+            throw new IllegalArgumentException("A descrição é obrigatória");
+        }
+
+        int quantidadeEmprestada = quantidadeEmprestada();
+        if (novaQuantidadeTotal < 1 || novaQuantidadeTotal < quantidadeEmprestada) {
             throw new IllegalArgumentException(
                     "A quantidade total não pode ser menor que o número de exemplares emprestados");
         }
-        if (titulo == null || titulo.isBlank() || autor == null || autor.isBlank() || isbn == null || descricao == null || descricao.isBlank()) {
-            throw new IllegalArgumentException("Os dados do livro são obrigatórios");
-        }
-        this.titulo = titulo.strip();
-        this.autor = autor.strip();
-        this.isbn = isbn;
-        this.quantidadeTotal = quantidadeTotal;
-        this.quantidadeDisponivel = quantidadeTotal - quantidadeEmprestada;
-        this.descricao = descricao.strip();
+
+        this.quantidadeTotal = novaQuantidadeTotal;
+        this.quantidadeDisponivel = novaQuantidadeTotal - quantidadeEmprestada;
+        this.descricao = novaDescricao.strip();
+    }
+
+    public int quantidadeEmprestada() {
+        return quantidadeTotal - quantidadeDisponivel;
     }
 
     public void reservarExemplar() {
