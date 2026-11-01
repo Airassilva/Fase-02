@@ -9,9 +9,10 @@ public class Livro {
     private Isbn isbn;
     private int quantidadeTotal;
     private int quantidadeDisponivel;
+    private String descricao;
 
-    private Livro(UUID id, String titulo, String autor, Isbn isbn, int quantidadeTotal, int quantidadeDisponivel) {
-        if (id == null || titulo == null || titulo.isBlank() || autor == null || autor.isBlank() || isbn == null) {
+    private Livro(UUID id, String titulo, String autor, Isbn isbn, int quantidadeTotal, int quantidadeDisponivel, String descricao) {
+        if (id == null || titulo == null || titulo.isBlank() || autor == null || autor.isBlank() || isbn == null || descricao == null || descricao.isBlank()) {
             throw new IllegalArgumentException("Os dados do livro são obrigatórios");
         }
         if (quantidadeTotal < 1 || quantidadeDisponivel < 0 || quantidadeDisponivel > quantidadeTotal) {
@@ -23,23 +24,24 @@ public class Livro {
         this.isbn = isbn;
         this.quantidadeTotal = quantidadeTotal;
         this.quantidadeDisponivel = quantidadeDisponivel;
+        this.descricao = descricao.strip();
     }
 
-    public static Livro cadastrar(String titulo, String autor, Isbn isbn, int quantidadeTotal) {
-        return new Livro(UUID.randomUUID(), titulo, autor, isbn, quantidadeTotal, quantidadeTotal);
+    public static Livro cadastrar(String titulo, String autor, Isbn isbn, int quantidadeTotal, String descricao) {
+        return new Livro(UUID.randomUUID(), titulo, autor, isbn, quantidadeTotal, quantidadeTotal, descricao);
     }
 
-    public static Livro reconstituir(UUID id, String titulo, String autor, Isbn isbn, int quantidadeTotal, int quantidadeDisponivel) {
-        return new Livro(id, titulo, autor, isbn, quantidadeTotal, quantidadeDisponivel);
+    public static Livro reconstituir(UUID id, String titulo, String autor, Isbn isbn, int quantidadeTotal, int quantidadeDisponivel, String descricao) {
+        return new Livro(id, titulo, autor, isbn, quantidadeTotal, quantidadeDisponivel, descricao);
     }
 
-    public void atualizar(String titulo, String autor, Isbn isbn, int quantidadeTotal) {
+    public void atualizar(String titulo, String autor, Isbn isbn, int quantidadeTotal, String descricao) {
         int quantidadeEmprestada = this.quantidadeTotal - this.quantidadeDisponivel;
         if (quantidadeTotal < 1 || quantidadeTotal < quantidadeEmprestada) {
             throw new IllegalArgumentException(
                     "A quantidade total não pode ser menor que o número de exemplares emprestados");
         }
-        if (titulo == null || titulo.isBlank() || autor == null || autor.isBlank() || isbn == null) {
+        if (titulo == null || titulo.isBlank() || autor == null || autor.isBlank() || isbn == null || descricao == null || descricao.isBlank()) {
             throw new IllegalArgumentException("Os dados do livro são obrigatórios");
         }
         this.titulo = titulo.strip();
@@ -47,6 +49,7 @@ public class Livro {
         this.isbn = isbn;
         this.quantidadeTotal = quantidadeTotal;
         this.quantidadeDisponivel = quantidadeTotal - quantidadeEmprestada;
+        this.descricao = descricao.strip();
     }
 
     public void reservarExemplar() {
@@ -91,4 +94,7 @@ public class Livro {
         return quantidadeDisponivel > 0;
     }
 
+    public String getDescricao() {
+        return descricao;
+    }
 }

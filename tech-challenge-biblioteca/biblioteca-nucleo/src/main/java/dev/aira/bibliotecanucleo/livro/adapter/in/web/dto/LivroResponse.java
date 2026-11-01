@@ -9,6 +9,7 @@ public record LivroResponse(
         String isbn,
         int quantidadeTotal,
         int quantidadeDisponivel,
-        boolean disponivel
+        boolean disponivel,
+        String descricao
 ) {
 }

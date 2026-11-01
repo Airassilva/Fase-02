@@ -9,6 +9,7 @@ public record LivroRequest(
         @NotBlank @Size(max = 255) String titulo,
         @NotBlank @Size(max = 255) String autor,
         @NotBlank String isbn,
-        @NotNull @Min(1) Integer quantidadeTotal
+        @NotNull @Min(1) Integer quantidadeTotal,
+        @Size(min = 20, max = 500) String descricao
 ) {
 }

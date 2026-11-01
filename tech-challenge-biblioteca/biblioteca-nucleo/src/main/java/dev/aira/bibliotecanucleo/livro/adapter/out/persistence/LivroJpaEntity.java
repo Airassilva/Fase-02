@@ -24,21 +24,25 @@ public class LivroJpaEntity {
     @Column(nullable = false, length = 13, unique = true)
     private String isbn;
 
-    @Column(name = "quantidade_total", nullable = false)
+    @Column(nullable = false)
     private int quantidadeTotal;
 
-    @Column(name = "quantidade_disponivel", nullable = false)
+    @Column(nullable = false)
     private int quantidadeDisponivel;
+
+    @Column(length = 500)
+    private String descricao;
 
     protected LivroJpaEntity() {
     }
 
-    LivroJpaEntity(UUID id, String titulo, String autor, String isbn, int quantidadeTotal, int quantidadeDisponivel) {
+    LivroJpaEntity(UUID id, String titulo, String autor, String isbn, int quantidadeTotal, int quantidadeDisponivel, String descricao) {
         this.id = id;
         this.titulo = titulo;
         this.autor = autor;
         this.isbn = isbn;
         this.quantidadeTotal = quantidadeTotal;
         this.quantidadeDisponivel = quantidadeDisponivel;
+        this.descricao = descricao;
     }
 }
