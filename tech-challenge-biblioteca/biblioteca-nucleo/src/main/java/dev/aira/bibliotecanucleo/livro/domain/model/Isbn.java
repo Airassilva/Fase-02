@@ -1,4 +1,4 @@
-package dev.aira.bibliotecanucleo.livro.domain;
+package dev.aira.bibliotecanucleo.livro.domain.model;
 
 import java.util.Objects;
 
