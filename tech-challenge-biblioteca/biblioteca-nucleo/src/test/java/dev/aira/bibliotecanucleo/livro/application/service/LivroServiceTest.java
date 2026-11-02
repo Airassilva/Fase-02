@@ -4,12 +4,14 @@ import dev.aira.bibliotecanucleo.livro.application.exception.LivroJaCadastradoEx
 import dev.aira.bibliotecanucleo.livro.application.exception.LivroNaoEncontradoException;
 import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase.CadastrarLivroCommand;
 import dev.aira.bibliotecanucleo.livro.application.port.out.LivroRepositoryPort;
+import dev.aira.bibliotecanucleo.livro.application.query.LivroFiltro;
 import dev.aira.bibliotecanucleo.livro.domain.model.Isbn;
 import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
+import dev.aira.bibliotecanucleo.shared.model.PageQuery;
+import dev.aira.bibliotecanucleo.shared.model.PageResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -68,11 +70,14 @@ class LivroServiceTest {
     }
 
     @Test
-    void listaLivros() {
-        List<Livro> livros = List.of(livro());
-        when(repository.buscarTodos()).thenReturn(livros);
+    void listaLivrosComFiltroEPaginacao() {
+        LivroFiltro filtro = new LivroFiltro("Clean", "Martin", "9780");
+        PageQuery pageQuery = new PageQuery(1, 10);
+        PageResult<Livro> pagina = new PageResult<>(java.util.List.of(livro()), 11, 1, 10);
+        when(repository.buscar(filtro, pageQuery)).thenReturn(pagina);
 
-        assertEquals(livros, service.buscarLivros());
+        assertEquals(pagina, service.buscarLivros(filtro, pageQuery));
+        verify(repository).buscar(filtro, pageQuery);
     }
 
     @Test

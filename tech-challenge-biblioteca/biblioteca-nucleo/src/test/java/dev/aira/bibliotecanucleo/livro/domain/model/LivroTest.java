@@ -1,5 +1,6 @@
 package dev.aira.bibliotecanucleo.livro.domain.model;
 
+import dev.aira.bibliotecanucleo.livro.domain.exception.LivroIndisponivelException;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;

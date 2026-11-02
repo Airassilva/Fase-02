@@ -4,10 +4,9 @@ import dev.aira.bibliotecanucleo.livro.adapter.in.web.dto.LivroRequest;
 import dev.aira.bibliotecanucleo.livro.adapter.in.web.dto.LivroResponse;
 import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase.CadastrarLivroCommand;
 import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
+import dev.aira.bibliotecanucleo.shared.model.PageResult;
 import jakarta.validation.Valid;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
 
 @Component
 public class LivroWebMapper {
@@ -35,7 +34,12 @@ public class LivroWebMapper {
         );
     }
 
-    public List<LivroResponse> toResponseList(List<Livro> livros) {
-        return livros.stream().map(this::toResponse).toList();
+    public PageResult<LivroResponse> toResponsePage(PageResult<Livro> livros) {
+        return new PageResult<>(
+                livros.content().stream().map(this::toResponse).toList(),
+                livros.total(),
+                livros.page(),
+                livros.size()
+        );
     }
 }

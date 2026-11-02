@@ -2,8 +2,10 @@ package dev.aira.bibliotecanucleo.livro.application.port.out;
 
 import dev.aira.bibliotecanucleo.livro.domain.model.Isbn;
 import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
+import dev.aira.bibliotecanucleo.livro.application.query.LivroFiltro;
+import dev.aira.bibliotecanucleo.shared.model.PageQuery;
+import dev.aira.bibliotecanucleo.shared.model.PageResult;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface LivroRepositoryPort {
@@ -11,5 +13,5 @@ public interface LivroRepositoryPort {
     Livro salvar(Livro livro);
     Livro buscarPorId(UUID id);
     void excluir(UUID id);
-    List<Livro> buscarTodos();
+    PageResult<Livro> buscar(LivroFiltro filtro, PageQuery pageQuery);
 }

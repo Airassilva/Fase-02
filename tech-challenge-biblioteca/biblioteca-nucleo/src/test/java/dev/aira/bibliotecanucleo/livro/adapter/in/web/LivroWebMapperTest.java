@@ -5,6 +5,7 @@ import dev.aira.bibliotecanucleo.livro.adapter.in.web.dto.LivroResponse;
 import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase.CadastrarLivroCommand;
 import dev.aira.bibliotecanucleo.livro.domain.model.Isbn;
 import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
+import dev.aira.bibliotecanucleo.shared.model.PageResult;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -45,17 +46,27 @@ class LivroWebMapperTest {
     }
 
     @Test
-    void converteTodosOsLivrosEmRespostas() {
+    void convertePaginaDeLivrosPreservandoMetadados() {
         Livro primeiro = Livro.cadastrar("Primeiro", "Autor", Isbn.de("9780306406157"), 1, "Descrição válida");
         Livro segundo = Livro.cadastrar("Segundo", "Autor", Isbn.de("9781861972712"), 2, "Outra descrição válida");
+        PageResult<Livro> pagina = new PageResult<>(List.of(primeiro, segundo), 23, 2, 10);
 
-        List<LivroResponse> responses = mapper.toResponseList(List.of(primeiro, segundo));
+        PageResult<LivroResponse> responses = mapper.toResponsePage(pagina);
 
-        assertEquals(List.of("Primeiro", "Segundo"), responses.stream().map(LivroResponse::titulo).toList());
+        assertEquals(List.of("Primeiro", "Segundo"),
+                responses.content().stream().map(LivroResponse::titulo).toList());
+        assertEquals(23, responses.total());
+        assertEquals(2, responses.page());
+        assertEquals(10, responses.size());
     }
 
     @Test
-    void converteListaVaziaSemLancarExcecao() {
-        assertEquals(List.of(), mapper.toResponseList(List.of()));
+    void convertePaginaVaziaPreservandoMetadados() {
+        PageResult<LivroResponse> responses = mapper.toResponsePage(new PageResult<>(List.of(), 0, 0, 10));
+
+        assertEquals(List.of(), responses.content());
+        assertEquals(0, responses.total());
+        assertEquals(0, responses.page());
+        assertEquals(10, responses.size());
     }
 }

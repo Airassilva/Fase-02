@@ -1,5 +1,7 @@
 package dev.aira.bibliotecanucleo.livro.domain.model;
 
+import dev.aira.bibliotecanucleo.livro.domain.exception.LivroIndisponivelException;
+
 import java.util.UUID;
 
 public class Livro {

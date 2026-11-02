@@ -8,12 +8,14 @@ import dev.aira.bibliotecanucleo.livro.application.port.in.DevolverExemplarUseCa
 import dev.aira.bibliotecanucleo.livro.application.port.in.ExcluirLivroUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.RetirarExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.out.LivroRepositoryPort;
+import dev.aira.bibliotecanucleo.livro.application.query.LivroFiltro;
 import dev.aira.bibliotecanucleo.livro.domain.model.Isbn;
 import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
+import dev.aira.bibliotecanucleo.shared.model.PageQuery;
+import dev.aira.bibliotecanucleo.shared.model.PageResult;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -54,8 +56,8 @@ public class LivroService implements CadastrarLivroUseCase, BuscarLivrosUseCase,
 
     @Override
     @Transactional
-    public List<Livro> buscarLivros() {
-        return livroRepositoryPort.buscarTodos();
+    public PageResult<Livro> buscarLivros(LivroFiltro filtro, PageQuery pageQuery) {
+        return livroRepositoryPort.buscar(filtro, pageQuery);
     }
 
     @Override

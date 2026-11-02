@@ -1,4 +1,4 @@
-package dev.aira.bibliotecanucleo.livro.domain.model;
+package dev.aira.bibliotecanucleo.livro.domain.exception;
 
 public class IsbnInvalidoException extends RuntimeException {
     public IsbnInvalidoException(String isbn) {

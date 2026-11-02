@@ -1,4 +1,4 @@
-package dev.aira.bibliotecanucleo.livro.domain.model;
+package dev.aira.bibliotecanucleo.livro.domain.exception;
 
 import java.util.UUID;
 

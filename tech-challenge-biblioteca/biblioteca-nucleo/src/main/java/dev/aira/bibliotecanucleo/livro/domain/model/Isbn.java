@@ -1,5 +1,7 @@
 package dev.aira.bibliotecanucleo.livro.domain.model;
 
+import dev.aira.bibliotecanucleo.livro.domain.exception.IsbnInvalidoException;
+
 import java.util.Objects;
 
 public record Isbn(String valor) {

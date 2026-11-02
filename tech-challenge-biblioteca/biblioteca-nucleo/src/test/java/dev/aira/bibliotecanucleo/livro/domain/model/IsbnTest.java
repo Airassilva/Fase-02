@@ -1,5 +1,6 @@
 package dev.aira.bibliotecanucleo.livro.domain.model;
 
+import dev.aira.bibliotecanucleo.livro.domain.exception.IsbnInvalidoException;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
