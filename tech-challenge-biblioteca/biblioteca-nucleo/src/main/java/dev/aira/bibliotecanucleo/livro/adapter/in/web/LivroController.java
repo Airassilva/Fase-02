@@ -7,9 +7,7 @@ import dev.aira.bibliotecanucleo.livro.application.query.LivroFiltro;
 import dev.aira.bibliotecanucleo.livro.application.port.in.AtualizarLivroUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.BuscarLivrosUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase;
-import dev.aira.bibliotecanucleo.livro.application.port.in.DevolverExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.ExcluirLivroUseCase;
-import dev.aira.bibliotecanucleo.livro.application.port.in.RetirarExemplarUseCase;
 import dev.aira.bibliotecanucleo.shared.model.PageQuery;
 import dev.aira.bibliotecanucleo.shared.model.PageResult;
 import jakarta.validation.Valid;
@@ -31,15 +29,13 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("api/livros")
+@RequestMapping("api/biblioteca/livros")
 public class LivroController {
 
     private final CadastrarLivroUseCase cadastrarLivro;
     private final BuscarLivrosUseCase buscarLivrosUseCase;
     private final AtualizarLivroUseCase atualizarLivroUseCase;
     private final ExcluirLivroUseCase excluirLivroUseCase;
-    private final RetirarExemplarUseCase retirarExemplarUseCase;
-    private final DevolverExemplarUseCase devolverExemplarUseCase;
     private final LivroWebMapper mapper;
 
     @PostMapping
@@ -49,11 +45,7 @@ public class LivroController {
     }
 
     @GetMapping
-    public ResponseEntity<PageResult<LivroResponse>> buscarLivros(
-            @RequestParam(required = false) String nome,
-            @RequestParam(required = false) String autor,
-            @RequestParam(required = false) String isbn,
-            Pageable pageable) {
+    public ResponseEntity<PageResult<LivroResponse>> buscarLivros(@RequestParam(required = false) String nome, @RequestParam(required = false) String autor, @RequestParam(required = false) String isbn, Pageable pageable) {
         var filtro = new LivroFiltro(nome, autor, isbn);
         var pageQuery = new PageQuery(pageable.getPageNumber(), pageable.getPageSize());
         var livros = buscarLivrosUseCase.buscarLivros(filtro, pageQuery);
@@ -69,18 +61,6 @@ public class LivroController {
     @PutMapping("/{id}")
     public ResponseEntity<LivroResponse> atualizarLivro(@PathVariable UUID id, @Valid @RequestBody LivroUpdateRequest livroRequest) {
         var livro = atualizarLivroUseCase.atualizarLivro(id, livroRequest.quantidadeTotal(), livroRequest.descricao());
-        return ResponseEntity.ok().body(mapper.toResponse(livro));
-    }
-
-    @PutMapping("{id}/reservar")
-    public ResponseEntity<LivroResponse> reservarExemplar(@PathVariable UUID id) {
-        var livro = retirarExemplarUseCase.reservarExemplar(id);
-        return ResponseEntity.ok().body(mapper.toResponse(livro));
-    }
-
-    @PutMapping("{id}/devolver")
-    public ResponseEntity<LivroResponse> devolverExemplar(@PathVariable UUID id) {
-        var livro = devolverExemplarUseCase.devolverExemplar(id);
         return ResponseEntity.ok().body(mapper.toResponse(livro));
     }
 

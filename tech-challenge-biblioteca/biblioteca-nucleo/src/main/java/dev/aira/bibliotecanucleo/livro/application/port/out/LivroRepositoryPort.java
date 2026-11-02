@@ -12,6 +12,8 @@ public interface LivroRepositoryPort {
     boolean existePorIsbn(Isbn isbn);
     Livro salvar(Livro livro);
     Livro buscarPorId(UUID id);
+    boolean retirarExemplar(UUID id);
+    void devolverExemplar(UUID id);
     void excluir(UUID id);
     PageResult<Livro> buscar(LivroFiltro filtro, PageQuery pageQuery);
 }

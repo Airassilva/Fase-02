@@ -30,7 +30,7 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/usuarios")
+@RequestMapping("/api/biblioteca/usuarios")
 public class UsuarioController {
 
     private final CadastrarUsuarioUseCase cadastrarUsuario;

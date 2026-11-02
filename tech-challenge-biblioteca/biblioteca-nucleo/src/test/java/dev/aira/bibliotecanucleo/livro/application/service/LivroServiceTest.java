@@ -89,31 +89,6 @@ class LivroServiceTest {
     }
 
     @Test
-    void reservaExemplarDoLivro() {
-        Livro livro = livro();
-        when(repository.buscarPorId(livro.getId())).thenReturn(livro);
-        when(repository.salvar(livro)).thenReturn(livro);
-
-        Livro resultado = service.reservarExemplar(livro.getId());
-
-        assertEquals(1, resultado.getQuantidadeDisponivel());
-        verify(repository).salvar(livro);
-    }
-
-    @Test
-    void devolveExemplarDoLivro() {
-        Livro livro = Livro.reconstituir(UUID.randomUUID(), "Título", "Autor", Isbn.de("9780306406157"),
-                2, 1, "Descrição válida");
-        when(repository.buscarPorId(livro.getId())).thenReturn(livro);
-        when(repository.salvar(livro)).thenReturn(livro);
-
-        Livro resultado = service.devolverExemplar(livro.getId());
-
-        assertEquals(2, resultado.getQuantidadeDisponivel());
-        verify(repository).salvar(livro);
-    }
-
-    @Test
     void excluiLivro() {
         UUID id = UUID.randomUUID();
 

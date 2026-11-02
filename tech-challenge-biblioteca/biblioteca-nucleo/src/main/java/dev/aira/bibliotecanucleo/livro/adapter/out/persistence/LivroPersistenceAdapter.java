@@ -46,6 +46,28 @@ public class LivroPersistenceAdapter implements LivroRepositoryPort {
     }
 
     @Override
+    public boolean retirarExemplar(UUID id) {
+        LivroJpaEntity entity = livroJpaRepository.buscarPorIdComBloqueio(id)
+                .orElseThrow(() -> new LivroNaoEncontradoException(id));
+        Livro livro = livroPersistenceMapper.toDomain(entity);
+        if (!livro.isDisponivel()) {
+            return false;
+        }
+        livro.reservarExemplar();
+        livroJpaRepository.save(livroPersistenceMapper.toEntity(livro));
+        return true;
+    }
+
+    @Override
+    public void devolverExemplar(UUID id) {
+        LivroJpaEntity entity = livroJpaRepository.buscarPorIdComBloqueio(id)
+                .orElseThrow(() -> new LivroNaoEncontradoException(id));
+        Livro livro = livroPersistenceMapper.toDomain(entity);
+        livro.devolverExemplar();
+        livroJpaRepository.save(livroPersistenceMapper.toEntity(livro));
+    }
+
+    @Override
     public void excluir(UUID id) {
         if (!livroJpaRepository.existsById(id)) {
             throw new LivroNaoEncontradoException(id);

@@ -5,9 +5,7 @@ import dev.aira.bibliotecanucleo.livro.adapter.in.web.dto.LivroUpdateRequest;
 import dev.aira.bibliotecanucleo.livro.application.port.in.AtualizarLivroUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.BuscarLivrosUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase;
-import dev.aira.bibliotecanucleo.livro.application.port.in.DevolverExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.ExcluirLivroUseCase;
-import dev.aira.bibliotecanucleo.livro.application.port.in.RetirarExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.application.query.LivroFiltro;
 import dev.aira.bibliotecanucleo.livro.domain.model.Isbn;
 import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
@@ -32,8 +30,6 @@ class LivroControllerTest {
     private BuscarLivrosUseCase buscar;
     private AtualizarLivroUseCase atualizar;
     private ExcluirLivroUseCase excluir;
-    private RetirarExemplarUseCase reservar;
-    private DevolverExemplarUseCase devolver;
     private LivroController controller;
     private Livro livro;
 
@@ -43,9 +39,7 @@ class LivroControllerTest {
         buscar = mock(BuscarLivrosUseCase.class);
         atualizar = mock(AtualizarLivroUseCase.class);
         excluir = mock(ExcluirLivroUseCase.class);
-        reservar = mock(RetirarExemplarUseCase.class);
-        devolver = mock(DevolverExemplarUseCase.class);
-        controller = new LivroController(cadastrar, buscar, atualizar, excluir, reservar, devolver, new LivroWebMapper());
+        controller = new LivroController(cadastrar, buscar, atualizar, excluir, new LivroWebMapper());
         livro = Livro.cadastrar("Título", "Autor", Isbn.de("9780306406157"), 2, "Descrição válida");
     }
 
@@ -111,26 +105,6 @@ class LivroControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(atualizar).atualizarLivro(livro.getId(), 4, "Nova descrição válida");
-    }
-
-    @Test
-    void reservaExemplar() {
-        when(reservar.reservarExemplar(livro.getId())).thenReturn(livro);
-
-        var response = controller.reservarExemplar(livro.getId());
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(livro.getId(), response.getBody().id());
-    }
-
-    @Test
-    void devolveExemplar() {
-        when(devolver.devolverExemplar(livro.getId())).thenReturn(livro);
-
-        var response = controller.devolverExemplar(livro.getId());
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(livro.getId(), response.getBody().id());
     }
 
     @Test

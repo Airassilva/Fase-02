@@ -4,9 +4,7 @@ import dev.aira.bibliotecanucleo.livro.application.exception.LivroJaCadastradoEx
 import dev.aira.bibliotecanucleo.livro.application.port.in.AtualizarLivroUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.BuscarLivrosUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase;
-import dev.aira.bibliotecanucleo.livro.application.port.in.DevolverExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.ExcluirLivroUseCase;
-import dev.aira.bibliotecanucleo.livro.application.port.in.RetirarExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.out.LivroRepositoryPort;
 import dev.aira.bibliotecanucleo.livro.application.query.LivroFiltro;
 import dev.aira.bibliotecanucleo.livro.domain.model.Isbn;
@@ -19,7 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 
 @Service
-public class LivroService implements CadastrarLivroUseCase, BuscarLivrosUseCase, RetirarExemplarUseCase, DevolverExemplarUseCase, AtualizarLivroUseCase, ExcluirLivroUseCase {
+public class LivroService implements CadastrarLivroUseCase, BuscarLivrosUseCase, AtualizarLivroUseCase, ExcluirLivroUseCase {
 
     private final LivroRepositoryPort livroRepositoryPort;
 
@@ -68,22 +66,8 @@ public class LivroService implements CadastrarLivroUseCase, BuscarLivrosUseCase,
 
     @Override
     @Transactional
-    public Livro reservarExemplar(UUID id) {
-        var livro = buscarLivroPorId(id);
-        livro.reservarExemplar();
-        return livroRepositoryPort.salvar(livro);
-    }
-
-    @Override
-    @Transactional
     public void excluirLivro(UUID id) {
         livroRepositoryPort.excluir(id);
     }
 
-    @Override
-    public Livro devolverExemplar(UUID id) {
-        var livro = buscarLivroPorId(id);
-        livro.devolverExemplar();
-        return livroRepositoryPort.salvar(livro);
-    }
 }

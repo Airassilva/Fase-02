@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -84,6 +85,36 @@ class LivroPersistenceAdapterTest {
         when(jpaRepository.findById(id)).thenReturn(Optional.empty());
 
         assertThrows(LivroNaoEncontradoException.class, () -> adapter.buscarPorId(id));
+    }
+
+    @Test
+    void retiraExemplarComLivroBloqueadoEAtualizaEstoque() {
+        UUID id = UUID.randomUUID();
+        Livro livro = Livro.reconstituir(
+                id, "Título", "Autor", Isbn.de("9780306406157"), 2, 1, "Descrição válida"
+        );
+        when(jpaRepository.buscarPorIdComBloqueio(id)).thenReturn(Optional.of(toEntity(livro)));
+        when(jpaRepository.save(any(LivroJpaEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertTrue(adapter.retirarExemplar(id));
+
+        verify(jpaRepository).save(org.mockito.ArgumentMatchers.argThat(
+                entity -> entity.getQuantidadeDisponivel() == 0
+        ));
+    }
+
+    @Test
+    void naoRetiraExemplarQuandoEstoqueJaEstaVazio() {
+        UUID id = UUID.randomUUID();
+        Livro livro = Livro.reconstituir(
+                id, "Título", "Autor", Isbn.de("9780306406157"), 2, 0, "Descrição válida"
+        );
+        when(jpaRepository.buscarPorIdComBloqueio(id)).thenReturn(Optional.of(toEntity(livro)));
+
+        assertFalse(adapter.retirarExemplar(id));
+
+        verify(jpaRepository, never()).save(any(LivroJpaEntity.class));
     }
 
     @Test
