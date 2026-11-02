@@ -1,11 +1,13 @@
 package dev.aira.bibliotecanucleo.livro.application.port.in;
 
+import dev.aira.bibliotecanucleo.livro.application.query.LivroFiltro;
+import dev.aira.bibliotecanucleo.shared.model.PageQuery;
+import dev.aira.bibliotecanucleo.shared.model.PageResult;
 import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface BuscarLivrosUseCase {
-    List<Livro> buscarLivros();
+    PageResult<Livro> buscarLivros(LivroFiltro filtro, PageQuery pageQuery);
     Livro buscarLivroPorId(UUID id);
 }
