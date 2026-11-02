@@ -7,7 +7,7 @@ import dev.aira.bibliotecanucleo.livro.application.port.in.BuscarLivrosUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.DevolverExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.ExcluirLivroUseCase;
-import dev.aira.bibliotecanucleo.livro.application.port.in.ReservarExemplarUseCase;
+import dev.aira.bibliotecanucleo.livro.application.port.in.RetirarExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.domain.model.Isbn;
 import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +28,7 @@ class LivroControllerTest {
     private BuscarLivrosUseCase buscar;
     private AtualizarLivroUseCase atualizar;
     private ExcluirLivroUseCase excluir;
-    private ReservarExemplarUseCase reservar;
+    private RetirarExemplarUseCase reservar;
     private DevolverExemplarUseCase devolver;
     private LivroController controller;
     private Livro livro;
@@ -39,7 +39,7 @@ class LivroControllerTest {
         buscar = mock(BuscarLivrosUseCase.class);
         atualizar = mock(AtualizarLivroUseCase.class);
         excluir = mock(ExcluirLivroUseCase.class);
-        reservar = mock(ReservarExemplarUseCase.class);
+        reservar = mock(RetirarExemplarUseCase.class);
         devolver = mock(DevolverExemplarUseCase.class);
         controller = new LivroController(cadastrar, buscar, atualizar, excluir, reservar, devolver, new LivroWebMapper());
         livro = Livro.cadastrar("Título", "Autor", Isbn.de("9780306406157"), 2, "Descrição válida");

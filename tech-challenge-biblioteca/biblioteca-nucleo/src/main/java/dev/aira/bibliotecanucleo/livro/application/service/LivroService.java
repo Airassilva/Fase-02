@@ -6,7 +6,7 @@ import dev.aira.bibliotecanucleo.livro.application.port.in.BuscarLivrosUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.DevolverExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.ExcluirLivroUseCase;
-import dev.aira.bibliotecanucleo.livro.application.port.in.ReservarExemplarUseCase;
+import dev.aira.bibliotecanucleo.livro.application.port.in.RetirarExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.out.LivroRepositoryPort;
 import dev.aira.bibliotecanucleo.livro.domain.model.Isbn;
 import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-public class LivroService implements CadastrarLivroUseCase, BuscarLivrosUseCase, ReservarExemplarUseCase, DevolverExemplarUseCase, AtualizarLivroUseCase, ExcluirLivroUseCase {
+public class LivroService implements CadastrarLivroUseCase, BuscarLivrosUseCase, RetirarExemplarUseCase, DevolverExemplarUseCase, AtualizarLivroUseCase, ExcluirLivroUseCase {
 
     private final LivroRepositoryPort livroRepositoryPort;
 

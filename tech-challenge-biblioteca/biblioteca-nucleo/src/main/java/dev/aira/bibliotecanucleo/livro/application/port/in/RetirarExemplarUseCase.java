@@ -4,6 +4,6 @@ import dev.aira.bibliotecanucleo.livro.domain.model.Livro;
 
 import java.util.UUID;
 
-public interface ReservarExemplarUseCase {
+public interface RetirarExemplarUseCase {
     Livro reservarExemplar(UUID id);
 }

@@ -8,7 +8,7 @@ import dev.aira.bibliotecanucleo.livro.application.port.in.BuscarLivrosUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.CadastrarLivroUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.DevolverExemplarUseCase;
 import dev.aira.bibliotecanucleo.livro.application.port.in.ExcluirLivroUseCase;
-import dev.aira.bibliotecanucleo.livro.application.port.in.ReservarExemplarUseCase;
+import dev.aira.bibliotecanucleo.livro.application.port.in.RetirarExemplarUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -34,7 +34,7 @@ public class LivroController {
     private final BuscarLivrosUseCase buscarLivrosUseCase;
     private final AtualizarLivroUseCase atualizarLivroUseCase;
     private final ExcluirLivroUseCase excluirLivroUseCase;
-    private final ReservarExemplarUseCase reservarExemplarUseCase;
+    private final RetirarExemplarUseCase retirarExemplarUseCase;
     private final DevolverExemplarUseCase devolverExemplarUseCase;
     private final LivroWebMapper mapper;
 
@@ -64,7 +64,7 @@ public class LivroController {
 
     @PutMapping("{id}/reservar")
     public ResponseEntity<LivroResponse> reservarExemplar(@PathVariable UUID id) {
-        var livro = reservarExemplarUseCase.reservarExemplar(id);
+        var livro = retirarExemplarUseCase.reservarExemplar(id);
         return ResponseEntity.ok().body(mapper.toResponse(livro));
     }
 
