@@ -27,6 +27,7 @@ public class LivroPersistenceMapper {
                 Isbn.de(entity.getIsbn()),
                 entity.getQuantidadeTotal(),
                 entity.getQuantidadeDisponivel(),
-                entity.getDescricao());
+                entity.getDescricao()
+        );
     }
 }

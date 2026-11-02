@@ -12,12 +12,6 @@ public class Livro {
     private String descricao;
 
     private Livro(UUID id, String titulo, String autor, Isbn isbn, int quantidadeTotal, int quantidadeDisponivel, String descricao) {
-        if (id == null || titulo == null || titulo.isBlank() || autor == null || autor.isBlank() || isbn == null || descricao == null || descricao.isBlank()) {
-            throw new IllegalArgumentException("Os dados do livro são obrigatórios");
-        }
-        if (quantidadeTotal < 1 || quantidadeDisponivel < 0 || quantidadeDisponivel > quantidadeTotal) {
-            throw new IllegalArgumentException("As quantidades do livro são inválidas");
-        }
         this.id = id;
         this.titulo = titulo.strip();
         this.autor = autor.strip();
@@ -28,7 +22,22 @@ public class Livro {
     }
 
     public static Livro cadastrar(String titulo, String autor, Isbn isbn, int quantidadeTotal, String descricao) {
-        return new Livro(UUID.randomUUID(), titulo, autor, isbn, quantidadeTotal, quantidadeTotal, descricao);
+        if (titulo == null || titulo.isBlank()) {
+            throw new IllegalArgumentException("Título é obrigatório");
+        }
+        if (autor == null || autor.isBlank()) {
+            throw new IllegalArgumentException("Autor é obrigatório");
+        }
+        if (isbn == null) {
+            throw new IllegalArgumentException("ISBN é obrigatório");
+        }
+        if (descricao == null || descricao.isBlank()) {
+            throw new IllegalArgumentException("Descrição é obrigatória");
+        }
+        if (quantidadeTotal < 1) {
+            throw new IllegalArgumentException("Deve haver ao menos um exemplar");
+        }
+        return new Livro(null, titulo.strip(), autor.strip(), isbn, quantidadeTotal, quantidadeTotal, descricao.strip());
     }
 
     public static Livro reconstituir(UUID id, String titulo, String autor, Isbn isbn, int quantidadeTotal, int quantidadeDisponivel, String descricao) {

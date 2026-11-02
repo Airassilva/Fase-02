@@ -2,17 +2,23 @@ package dev.aira.bibliotecanucleo.livro.adapter.out.persistence;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
 @Entity
-@Getter
 @Table(name = "livros")
+@Getter
+@NoArgsConstructor
 public class LivroJpaEntity {
+
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(nullable = false, length = 255)
@@ -32,9 +38,6 @@ public class LivroJpaEntity {
 
     @Column(length = 500)
     private String descricao;
-
-    protected LivroJpaEntity() {
-    }
 
     LivroJpaEntity(UUID id, String titulo, String autor, String isbn, int quantidadeTotal, int quantidadeDisponivel, String descricao) {
         this.id = id;
