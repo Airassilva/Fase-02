@@ -6,19 +6,24 @@ import dev.aira.bibliotecanucleo.shared.outbox.OutboxEventRepository;
 import dev.aira.bibliotecanucleo.emprestimo.application.model.EmprestimoEvento;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EventoEmprestimoPublisherPort;
 import dev.aira.bibliotecanucleo.shared.outbox.OutboxEventEntity;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
 @Component
-@RequiredArgsConstructor
 class OutboxEventoPublisherAdapter implements EventoEmprestimoPublisherPort {
 
     private final OutboxEventRepository outbox;
     private final ObjectMapper json;
-    @Value("${app.kafka.topics.emprestimos}") private String topico;
+
+    @Value("${app.kafka.topics.emprestimos}")
+    private String topico;
+
+    OutboxEventoPublisherAdapter(OutboxEventRepository outbox, ObjectMapper json) {
+        this.outbox = outbox;
+        this.json = json;
+    }
 
     @Override
     public void publicar(EmprestimoEvento evento) {

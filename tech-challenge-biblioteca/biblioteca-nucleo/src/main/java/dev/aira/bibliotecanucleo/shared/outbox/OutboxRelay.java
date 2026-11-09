@@ -1,7 +1,6 @@
 package dev.aira.bibliotecanucleo.shared.outbox;
 
 import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -15,11 +14,15 @@ import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 class OutboxRelay {
 
     private final OutboxEventRepository outbox;
     private final KafkaTemplate<String, String> kafka;
+
+    OutboxRelay(OutboxEventRepository outbox, KafkaTemplate<String, String> kafka) {
+        this.outbox = outbox;
+        this.kafka = kafka;
+    }
 
     @Scheduled(fixedDelayString = "${app.outbox.intervalo-ms:5000}")
     @Transactional
