@@ -1,6 +1,7 @@
 package dev.aira.bibliotecanucleo.emprestimo.application.service;
 
 import dev.aira.bibliotecanucleo.emprestimo.application.model.EmprestimoDetalhe;
+import dev.aira.bibliotecanucleo.emprestimo.application.model.EmprestimoEvento;
 import dev.aira.bibliotecanucleo.emprestimo.application.model.ReservaDetalhe;
 import dev.aira.bibliotecanucleo.emprestimo.application.model.SolicitacaoLivroDetalhe;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.EmprestimoNaoEncontradoException;
@@ -14,19 +15,23 @@ import dev.aira.bibliotecanucleo.emprestimo.application.port.in.ReservarLivroUse
 import dev.aira.bibliotecanucleo.emprestimo.application.port.in.DevolverLivroUseCase;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EmprestimoRepositoryPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EmprestimoUnitOfWork;
+import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EventoEmprestimoPublisherPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.LivroGateway;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.UsuarioGateway;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.Emprestimo;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.PoliticaPrazo;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.Reserva;
+import jakarta.transaction.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Objects;
+import java.util.UUID;
 
 public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUseCase, DevolverLivroUseCase {
     private final EmprestimoRepositoryPort emprestimoRepository;
+    private final EventoEmprestimoPublisherPort eventoEmprestimoPublisher;
     private final LivroGateway livroGateway;
     private final UsuarioGateway usuarioGateway;
     private final PoliticaPrazo politicaPrazo;
@@ -34,13 +39,14 @@ public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUs
     private final Clock clock;
 
     public EmprestimoService(
-            EmprestimoRepositoryPort emprestimoRepository,
+            EmprestimoRepositoryPort emprestimoRepository, EventoEmprestimoPublisherPort eventoEmprestimoPublisher,
             LivroGateway livroGateway,
             UsuarioGateway usuarioGateway,
             PoliticaPrazo politicaPrazo,
             EmprestimoUnitOfWork unitOfWork,
             Clock clock) {
         this.emprestimoRepository = emprestimoRepository;
+        this.eventoEmprestimoPublisher = eventoEmprestimoPublisher;
         this.livroGateway = livroGateway;
         this.usuarioGateway = usuarioGateway;
         this.politicaPrazo = politicaPrazo;
@@ -49,19 +55,22 @@ public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUs
     }
 
     @Override
+    @Transactional
     public SolicitacaoLivroDetalhe emprestarLivro(CadastrarEmprestimoCommand command) {
         Objects.requireNonNull(command, "A solicitação de empréstimo é obrigatória");
         return solicitar(command.livroId(), command.usuarioId());
     }
 
     @Override
+    @Transactional
     public SolicitacaoLivroDetalhe reservarLivro(ReservarLivroCommand command) {
         Objects.requireNonNull(command, "A solicitação de reserva é obrigatória");
         return solicitar(command.livroId(), command.usuarioId());
     }
 
     @Override
-    public EmprestimoDetalhe devolverLivro(java.util.UUID emprestimoId, java.util.UUID usuarioId) {
+    @Transactional
+    public EmprestimoDetalhe devolverLivro(UUID emprestimoId, java.util.UUID usuarioId) {
         Objects.requireNonNull(emprestimoId, "O empréstimo é obrigatório");
         Objects.requireNonNull(usuarioId, "O usuário é obrigatório");
         return unitOfWork.executar(() -> {
@@ -83,6 +92,9 @@ public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUs
                         emprestimoRepository.atualizarReserva(reserva);
                     });
 
+            eventoEmprestimoPublisher.publicar(
+                    EmprestimoEvento.devolvido(devolvido, livro, clock.instant()));
+
             return new EmprestimoDetalhe(
                     devolvido.getId(),
                     devolvido.getUsuarioId(),
@@ -96,14 +108,14 @@ public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUs
         });
     }
 
-    private SolicitacaoLivroDetalhe solicitar(java.util.UUID livroId, java.util.UUID usuarioId) {
+    private SolicitacaoLivroDetalhe solicitar(UUID livroId, java.util.UUID usuarioId) {
         Objects.requireNonNull(livroId, "O livro é obrigatório");
         Objects.requireNonNull(usuarioId, "O usuário é obrigatório");
         return unitOfWork.executar(() -> emprestarOuReservar(livroId, usuarioId));
     }
 
-    private SolicitacaoLivroDetalhe emprestarOuReservar(java.util.UUID livroId, java.util.UUID usuarioId) {
-        var usuario = usuarioGateway.buscarUsuario(usuarioId);
+    private SolicitacaoLivroDetalhe emprestarOuReservar(UUID livroId, java.util.UUID usuarioId) {
+        var usuario = usuarioGateway.buscarUsuarioParaEmprestimo(usuarioId);
         if (usuario == null) {
             throw new IllegalStateException("O gateway de usuário retornou um usuário inexistente");
         }
@@ -145,6 +157,10 @@ public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUs
                 reserva.atender();
                 emprestimoRepository.atualizarReserva(reserva);
             });
+
+            eventoEmprestimoPublisher.publicar(
+                    EmprestimoEvento.realizado(salvo, livro, clock.instant()));
+
             return SolicitacaoLivroDetalhe.emprestimo(new EmprestimoDetalhe(
                     salvo.getId(),
                     salvo.getUsuarioId(),
@@ -162,9 +178,8 @@ public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUs
         }
 
         Instant agora = clock.instant();
-        var reservaSalva = emprestimoRepository.salvarReserva(
-                Reserva.registrar(usuarioId, livroId, agora)
-        );
+        var reservaSalva = emprestimoRepository.salvarReserva(Reserva.registrar(usuarioId, livroId, agora));
+
         return SolicitacaoLivroDetalhe.reserva(new ReservaDetalhe(
                 reservaSalva.getId(),
                 reservaSalva.getUsuarioId(),

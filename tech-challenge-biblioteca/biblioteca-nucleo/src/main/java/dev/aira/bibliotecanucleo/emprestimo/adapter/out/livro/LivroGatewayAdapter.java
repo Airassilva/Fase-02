@@ -15,7 +15,11 @@ public class LivroGatewayAdapter implements LivroGateway {
     @Override
     public LivroInfo buscarLivro(UUID livroId) {
         var livro = livroRepository.buscarPorId(livroId);
-        return new LivroInfo(livro.getId(), livro.getTitulo());
+        return new LivroInfo(
+                livro.getId(),
+                livro.getTitulo(),
+                livro.getAutor(),
+                livro.getIsbn().valor());
     }
 
     @Override

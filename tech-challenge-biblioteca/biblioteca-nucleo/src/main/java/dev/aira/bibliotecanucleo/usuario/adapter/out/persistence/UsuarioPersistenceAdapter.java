@@ -40,6 +40,12 @@ public class UsuarioPersistenceAdapter implements UsuarioRepositoryPort {
     }
 
     @Override
+    public Optional<Usuario> buscarPorIdComBloqueio(UUID id) {
+        return usuarioJpaRepository.buscarPorIdComBloqueio(id)
+                .map(usuarioPersistenceMapper::toDomain);
+    }
+
+    @Override
     public boolean existePorEmail(String email) {
         return usuarioJpaRepository.existsByEmail(email);
     }

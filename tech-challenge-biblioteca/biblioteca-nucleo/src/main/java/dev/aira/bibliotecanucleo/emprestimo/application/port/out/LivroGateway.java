@@ -9,6 +9,6 @@ public interface LivroGateway {
 
     void devolverExemplar(UUID livroId);
 
-    record LivroInfo(UUID id, String titulo) {
+    record LivroInfo(UUID id, String titulo, String autor, String isbn) {
     }
 }

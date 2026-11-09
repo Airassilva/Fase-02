@@ -1,12 +1,14 @@
 package dev.aira.bibliotecanucleo.emprestimo.application.service;
 
 import dev.aira.bibliotecanucleo.emprestimo.application.model.TipoSolicitacaoLivro;
+import dev.aira.bibliotecanucleo.emprestimo.application.model.EmprestimoEvento;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.LimiteEmprestimosAtingidoException;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.ReservaDisponivelParaOutroUsuarioException;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.ReservaJaAbertaException;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.in.EmprestarLivroUseCase.CadastrarEmprestimoCommand;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.in.ReservarLivroUseCase.ReservarLivroCommand;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EmprestimoRepositoryPort;
+import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EventoEmprestimoPublisherPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.LivroGateway;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.UsuarioGateway;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.Emprestimo;
@@ -28,6 +30,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -40,6 +43,7 @@ class EmprestimoServiceTest {
     private static final Clock CLOCK = Clock.fixed(AGORA, ZoneId.of("America/Recife"));
 
     private EmprestimoRepositoryPort repository;
+    private EventoEmprestimoPublisherPort publisherPort;
     private LivroGateway livroGateway;
     private UsuarioGateway usuarioGateway;
     private EmprestimoService service;
@@ -47,6 +51,7 @@ class EmprestimoServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(EmprestimoRepositoryPort.class);
+        publisherPort = mock(EventoEmprestimoPublisherPort.class);
         livroGateway = mock(LivroGateway.class);
         usuarioGateway = mock(UsuarioGateway.class);
         EmprestimoUnitOfWork unitOfWork = new EmprestimoUnitOfWork() {
@@ -58,6 +63,7 @@ class EmprestimoServiceTest {
         PoliticaPrazo politicaPrazo = LocalDate::plus;
         service = new EmprestimoService(
                 repository,
+                publisherPort,
                 livroGateway,
                 usuarioGateway,
                 politicaPrazo,
@@ -65,10 +71,10 @@ class EmprestimoServiceTest {
                 CLOCK
         );
 
-        when(usuarioGateway.buscarUsuario(USUARIO_ID))
-                .thenReturn(new UsuarioGateway.UsuarioInfo(
-                        USUARIO_ID, "Aira Silva", java.time.Period.ofDays(14), 3, true
-                ));
+        var usuario = new UsuarioGateway.UsuarioInfo(
+                USUARIO_ID, "Aira Silva", java.time.Period.ofDays(14), 3, true);
+        when(usuarioGateway.buscarUsuario(USUARIO_ID)).thenReturn(usuario);
+        when(usuarioGateway.buscarUsuarioParaEmprestimo(USUARIO_ID)).thenReturn(usuario);
     }
 
     @Test
@@ -85,6 +91,8 @@ class EmprestimoServiceTest {
         assertEquals("Aira Silva", resultado.emprestimo().nomeUsuario());
         assertEquals(LocalDate.of(2026, 11, 2), resultado.emprestimo().dataEmprestimo());
         assertEquals(LocalDate.of(2026, 11, 16), resultado.emprestimo().dataPrevistaDevolucao());
+        verify(publisherPort).publicar(argThat(evento ->
+                evento.tipo() == EmprestimoEvento.TipoEvento.EMPRESTIMO_REALIZADO));
         verify(repository, never()).salvarReserva(any(Reserva.class));
     }
 
@@ -115,6 +123,7 @@ class EmprestimoServiceTest {
         assertEquals(AGORA, resultado.reserva().dataReserva());
         verify(livroGateway).retirarExemplar(LIVRO_ID);
         verify(repository, never()).salvarEmprestimo(any(Emprestimo.class));
+        verify(publisherPort, never()).publicar(any(EmprestimoEvento.class));
     }
 
     @Test
@@ -129,6 +138,7 @@ class EmprestimoServiceTest {
         assertEquals(TipoSolicitacaoLivro.RESERVA, resultado.tipo());
         verify(repository).salvarReserva(any(Reserva.class));
         verify(repository, never()).salvarEmprestimo(any(Emprestimo.class));
+        verify(publisherPort, never()).publicar(any(EmprestimoEvento.class));
     }
 
     @Test
@@ -152,6 +162,8 @@ class EmprestimoServiceTest {
         assertEquals(TipoSolicitacaoLivro.EMPRESTIMO, resultado.tipo());
         assertEquals(StatusReserva.ATENDIDA, reserva.getStatus());
         verify(repository).atualizarReserva(reserva);
+        verify(publisherPort).publicar(argThat(evento ->
+                evento.tipo() == EmprestimoEvento.TipoEvento.EMPRESTIMO_REALIZADO));
     }
 
     @Test
@@ -242,7 +254,8 @@ class EmprestimoServiceTest {
         when(repository.buscarProximaReservaAtiva(LIVRO_ID)).thenReturn(Optional.of(reserva));
         when(repository.atualizarReserva(reserva)).thenReturn(reserva);
         when(livroGateway.buscarLivro(LIVRO_ID))
-                .thenReturn(new LivroGateway.LivroInfo(LIVRO_ID, "O Hobbit"));
+                .thenReturn(new LivroGateway.LivroInfo(
+                        LIVRO_ID, "O Hobbit", "J. R. R. Tolkien", "9780306406157"));
 
         var detalhe = service.devolverLivro(emprestimoId, USUARIO_ID);
 
@@ -280,6 +293,7 @@ class EmprestimoServiceTest {
 
     private void givenLivro() {
         when(livroGateway.buscarLivro(LIVRO_ID))
-                .thenReturn(new LivroGateway.LivroInfo(LIVRO_ID, "O Hobbit"));
+                .thenReturn(new LivroGateway.LivroInfo(
+                        LIVRO_ID, "O Hobbit", "J. R. R. Tolkien", "9780306406157"));
     }
 }

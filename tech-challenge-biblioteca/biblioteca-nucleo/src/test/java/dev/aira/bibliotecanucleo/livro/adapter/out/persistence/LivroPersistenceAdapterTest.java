@@ -214,7 +214,14 @@ class LivroPersistenceAdapterTest {
     }
 
     private Livro livro() {
-        return Livro.cadastrar("Título", "Autor", Isbn.de("9780306406157"), 2, "Descrição válida");
+        return Livro.reconstituir(
+                UUID.randomUUID(),
+                "Título",
+                "Autor",
+                Isbn.de("9780306406157"),
+                2,
+                2,
+                "Descrição válida");
     }
 
     private LivroJpaEntity toEntity(Livro livro) {

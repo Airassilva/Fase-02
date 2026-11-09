@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -14,7 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "livros")
 @Getter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LivroJpaEntity {
 
     @Id
@@ -36,7 +37,7 @@ public class LivroJpaEntity {
     @Column(nullable = false)
     private int quantidadeDisponivel;
 
-    @Column(length = 500)
+    @Column(nullable = false, length = 500)
     private String descricao;
 
     LivroJpaEntity(UUID id, String titulo, String autor, String isbn, int quantidadeTotal, int quantidadeDisponivel, String descricao) {

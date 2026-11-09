@@ -11,6 +11,7 @@ import java.util.UUID;
 public interface UsuarioRepositoryPort {
     Usuario salvar(Usuario usuario);
     Optional<Usuario> buscarPorId(UUID id);
+    Optional<Usuario> buscarPorIdComBloqueio(UUID id);
     boolean existePorEmail(String email);
     PageResult<Usuario> listar(UsuarioFiltro filtro, PageQuery pageQuery);
 }

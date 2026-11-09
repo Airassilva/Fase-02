@@ -11,6 +11,7 @@ import dev.aira.bibliotecanucleo.emprestimo.adapter.out.persistence.ReservaPersi
 import dev.aira.bibliotecanucleo.emprestimo.adapter.out.usuario.UsuarioGatewayAdapter;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EmprestimoRepositoryPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EmprestimoUnitOfWork;
+import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EventoEmprestimoPublisherPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.LivroGateway;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.UsuarioGateway;
 import dev.aira.bibliotecanucleo.emprestimo.application.service.EmprestimoService;
@@ -79,6 +80,7 @@ public class BeanConfig {
     @Bean
     EmprestimoService emprestimoService(
             EmprestimoRepositoryPort emprestimoRepository,
+            EventoEmprestimoPublisherPort eventoPublisher,
             LivroGateway livroGateway,
             UsuarioGateway usuarioGateway,
             PoliticaPrazo politicaPrazo,
@@ -87,6 +89,7 @@ public class BeanConfig {
     ) {
         return new EmprestimoService(
                 emprestimoRepository,
+                eventoPublisher,
                 livroGateway,
                 usuarioGateway,
                 politicaPrazo,

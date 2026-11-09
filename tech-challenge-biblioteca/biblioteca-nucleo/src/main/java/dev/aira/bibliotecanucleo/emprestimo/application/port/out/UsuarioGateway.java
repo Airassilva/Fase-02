@@ -6,6 +6,8 @@ import java.util.UUID;
 public interface UsuarioGateway {
     UsuarioInfo buscarUsuario(UUID usuarioId);
 
+    UsuarioInfo buscarUsuarioParaEmprestimo(UUID usuarioId);
+
     record UsuarioInfo(UUID id, String nome, Period prazoEmprestimo, int limiteEmprestimosAtivos, boolean ativo) {
     }
 }

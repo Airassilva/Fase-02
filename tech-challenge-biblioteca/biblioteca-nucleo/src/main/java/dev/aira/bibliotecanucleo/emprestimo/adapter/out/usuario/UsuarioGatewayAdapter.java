@@ -17,6 +17,17 @@ public class UsuarioGatewayAdapter implements UsuarioGateway {
     public UsuarioInfo buscarUsuario(UUID usuarioId) {
         var usuario = usuarioRepository.buscarPorId(usuarioId)
                 .orElseThrow(() -> new UsuarioNaoEncontradoException(usuarioId));
+        return toInfo(usuario);
+    }
+
+    @Override
+    public UsuarioInfo buscarUsuarioParaEmprestimo(UUID usuarioId) {
+        var usuario = usuarioRepository.buscarPorIdComBloqueio(usuarioId)
+                .orElseThrow(() -> new UsuarioNaoEncontradoException(usuarioId));
+        return toInfo(usuario);
+    }
+
+    private UsuarioInfo toInfo(dev.aira.bibliotecanucleo.usuario.domain.model.Usuario usuario) {
         return new UsuarioInfo(
                 usuario.getId(),
                 usuario.getNome(),
