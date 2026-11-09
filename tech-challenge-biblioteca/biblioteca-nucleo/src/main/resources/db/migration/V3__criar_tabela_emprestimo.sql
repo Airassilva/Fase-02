@@ -2,7 +2,7 @@ CREATE TABLE emprestimo
 (
     id                      UUID        PRIMARY KEY,
     usuario_id              UUID        NOT NULL REFERENCES usuario (id),
-    livro_id                UUID        NOT NULL REFERENCES livro (id),
+    livro_id                UUID        NOT NULL REFERENCES livros (id),
     data_emprestimo         DATE        NOT NULL,
     data_prevista_devolucao DATE        NOT NULL,
     data_devolucao          DATE,

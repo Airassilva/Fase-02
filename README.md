@@ -87,7 +87,8 @@ Fase-02/
 ├── README.md
 └── tech-challenge-biblioteca/
     ├── docker-compose.yml
-    └── biblioteca-nucleo/    serviço transacional
+    ├── nginx/                 gateway para o núcleo
+    └── biblioteca-nucleo/     serviço transacional
 ```
 
 ---
@@ -115,21 +116,24 @@ cd tech-challenge-biblioteca\biblioteca-nucleo
 .\mvnw.cmd spring-boot:run
 ```
 
-Para subir também `api-nucleo` com Docker Compose, o build usa `biblioteca-nucleo` como contexto:
+Para subir o núcleo com gateway e três instâncias da API:
 
 ```bash
 cd tech-challenge-biblioteca
-docker compose up --build api-nucleo
+docker compose up --build --scale api-nucleo=3 api-gateway
 ```
 
-Serviços e portas definidos no Compose:
+A API não publica portas individuais; o Nginx encaminha o tráfego para as instâncias saudáveis do núcleo. Serviços e portas:
 
 | Serviço | URL |
 |---|---|
-| API Núcleo | http://localhost:8080 |
+| API Núcleo (gateway) | http://localhost:8080 |
 | Kafka externo | `localhost:29092` |
 | Swagger Núcleo | http://localhost:8080/swagger-ui/index.html |
 | Health Núcleo | http://localhost:8080/actuator/health |
+| Kafka UI | http://localhost:8090 |
+
+Para executar uma instância sem escalar, use `docker compose up --build api-gateway`; o gateway continuará disponível em `localhost:8080`.
 
 Para parar a infraestrutura (preservando os dados nos volumes):
 
@@ -148,6 +152,7 @@ Use `docker compose down -v` somente se também quiser apagar os dados persistid
 | `SPRING_DATASOURCE_PASSWORD` | Senha do banco | `biblioteca` |
 | `SPRING_KAFKA_BOOTSTRAP_SERVERS` | Endereço do Kafka; para a aplicação local, use a porta externa publicada pelo Compose | `localhost:29092` |
 | `APP_KAFKA_TOPICS_EMPRESTIMOS` | Tópico usado pela outbox | `biblioteca.emprestimos` |
+| `HIBERNATE_JDBC_BATCH_SIZE` | Quantidade máxima de instruções compatíveis agrupadas pelo Hibernate | `50` |
 
 ---
 
@@ -235,18 +240,20 @@ Tipos emitidos: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`. A criação de reser
 
 ## Data e hora
 
-- Datas e horas armazenadas e trafegadas em **UTC**, no formato **ISO-8601** (`2026-10-17T14:30:00Z`).
-- Datas sem hora (como a previsão de devolução) usam `LocalDate` no formato `yyyy-MM-dd`.
-- O prazo de devolução é calculado com a API `java.time`, a partir de um `Clock` injetado, o que torna as regras testáveis.
-- Fuso de referência para exibição: `America/Recife`.
+- Instantes (como `ocorridoEm` dos eventos) são serializados em **UTC**, no formato ISO-8601 com `Z` (por exemplo, `2026-10-17T14:30:00Z`).
+- Datas de empréstimo, previsão e devolução são datas civis (`LocalDate`), serializadas em ISO-8601 como `yyyy-MM-dd`, sem horário nem offset.
+- O dia civil é determinado pelo fuso `America/Recife`; o cálculo usa a API `java.time` e um `Clock` injetado para manter as regras testáveis.
+- Os contêineres usam `TZ=UTC` para processos e logs; isso não altera o fuso de negócio explícito do `Clock`.
 
 ---
 
 ## Otimização de acesso a dados
 
 - **Paginação** nas listagens de livros e usuários.
-- **Índices** em ISBN, título, autor e chaves usadas em empréstimos e reservas.
+- **Tamanho de página limitado** a 100 registros (padrão 20) para controlar volume de dados e memória.
+- **Índices** em ISBN, título, autor e chaves usadas em empréstimos e reservas. A migração V7 adiciona índices GIN com `pg_trgm` nos campos usados em buscas parciais, permitindo acelerar os filtros `LIKE '%termo%'`.
 - **Filtros textuais** fazem escape dos curingas SQL (`%` e `_`) para que buscas parciais preservem o significado literal dos termos informados.
+- **Lotes JDBC do Hibernate** habilitados (padrão 50) e operações de escrita ordenadas para agrupar instruções compatíveis em uma transação. O relay também lê eventos pendentes em lotes de até 20.
 - **Controle de concorrência** no estoque e na fila de reservas com bloqueios pessimistas; a verificação de limite de empréstimos também bloqueia o usuário durante a operação.
 
 ---
@@ -254,16 +261,18 @@ Tipos emitidos: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`. A criação de reser
 ## Docker e escalabilidade
 
 - **Dockerfile multi-stage** para o núcleo: build com Maven e imagem final enxuta com JRE 21.
-- **Docker Compose** define PostgreSQL, Kafka e aplicações; neste checkout, o contexto do serviço de relatórios está ausente. Kafka de nó único com fator de replicação 1 é configuração de desenvolvimento, não alta disponibilidade.
-- **Serviços stateless:** podem ser replicados atrás de um balanceador de carga.
+- **Docker Compose** permite escalar horizontalmente o núcleo com `--scale api-nucleo=3`, atrás de um gateway Nginx. PostgreSQL e Kafka locais continuam sendo instâncias únicas; o cenário demonstra escalabilidade da API, não alta disponibilidade da infraestrutura.
 - **Relay concorrente:** `FOR UPDATE SKIP LOCKED` permite que instâncias do núcleo busquem registros pendentes sem bloquear as linhas já reservadas por outra instância.
 - **Threads virtuais** (Java 21) habilitadas para melhorar a vazão em operações de I/O.
+
+### Produção
+
+O Compose é destinado ao desenvolvimento e à demonstração de escala horizontal da API. Para produção, use PostgreSQL gerenciado com backup/alta disponibilidade e Kafka gerenciado ou cluster com replicação adequada; configure segredos fora do Compose, limites de CPU/memória, monitoramento e autoscaling no orquestrador. O fator de replicação 1 do Kafka local não protege contra indisponibilidade do broker. O módulo `biblioteca-relatorio` também não está presente neste checkout.
 
 ### Evolução futura
 
 - Réplica de leitura ou view materializada para os relatórios
 - Cache (Redis) para o catálogo, que é lido com muito mais frequência do que escrito
-- Balanceador (Nginx) na frente das réplicas
 - Orquestração com Kubernetes
 
 ---
