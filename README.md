@@ -26,7 +26,9 @@ O sistema permite cadastrar livros, gerir usuários, registrar empréstimos e de
 
 ## Visão geral da arquitetura
 
-O sistema é composto por **dois serviços**, cada um com o seu próprio banco de dados, que se comunicam de forma assíncrona via Kafka.
+O workspace contém o serviço transacional `biblioteca-nucleo`, que usa PostgreSQL e publica eventos em Kafka por meio de uma transactional outbox. O `docker-compose.yml` também referencia um serviço `biblioteca-relatorio`; esse módulo não está presente neste checkout.
+
+O diagrama a seguir representa a arquitetura prevista quando o serviço de relatórios estiver disponível:
 
 ```
 ┌──────────────────────────┐    evento     ┌───────┐   consome   ┌──────────────────────────┐
@@ -54,12 +56,9 @@ dev.aira.biblioteca.nucleo
 
 Regra de dependência: `adapter → application → domain`. O domínio não depende de Spring nem de JPA, e os módulos conversam entre si apenas por portas.
 
-### `biblioteca-relatorio`
+### Serviço de relatórios
 
-Serviço de leitura. Consome os eventos de empréstimo publicados pelo núcleo, mantém um modelo de leitura próprio e expõe os relatórios. Um job agendado consolida os relatórios periodicamente.
-
-- Top 20 livros mais emprestados
-- Livros emprestados no momento e previsão de devolução
+O Compose prevê um serviço de leitura que consumiria os eventos do núcleo e manteria seu próprio modelo de leitura. O código desse serviço não está disponível neste checkout; portanto, os endpoints de relatório descritos em versões anteriores deste README não fazem parte da API verificável aqui.
 
 ---
 
@@ -75,7 +74,7 @@ Serviço de leitura. Consome os eventos de empréstimo publicados pelo núcleo, 
 | Documentação | SpringDoc OpenAPI (Swagger UI) e Javadoc |
 | Mapeamento | MapStruct |
 | Observabilidade | Spring Boot Actuator |
-| Testes | JUnit 5, Testcontainers, ArchUnit |
+| Testes | JUnit 5, Mockito, Testcontainers |
 | Contêineres | Docker e Docker Compose |
 | Build | Maven |
 
@@ -84,12 +83,11 @@ Serviço de leitura. Consome os eventos de empréstimo publicados pelo núcleo, 
 ## Estrutura do repositório
 
 ```
-tech-challenge-biblioteca/
-├── docker-compose.yml
+Fase-02/
 ├── README.md
-├── biblioteca-nucleo/        serviço transacional
-├── biblioteca-relatorio/     serviço de relatórios
-└── docs/                     diagramas e relatório técnico
+└── tech-challenge-biblioteca/
+    ├── docker-compose.yml
+    └── biblioteca-nucleo/    serviço transacional
 ```
 
 ---
@@ -99,63 +97,57 @@ tech-challenge-biblioteca/
 ### Pré-requisitos
 
 - Docker e Docker Compose
-- (opcional, para rodar fora do Docker) JDK 21 e Maven 3.9+
+- Para rodar fora do Docker: JDK 21; o Maven Wrapper do projeto está incluído
 
-### Subindo tudo com Docker Compose
+### Subindo a infraestrutura do núcleo
+
+O Compose contém também uma definição para `api-relatorio`, cujo contexto (`biblioteca-relatorio`) não está presente neste workspace. Para iniciar somente a infraestrutura necessária ao núcleo:
 
 ```bash
-git clone https://github.com/Airassilva/Fase-02.git
 cd tech-challenge-biblioteca
-
-docker compose up --build
+docker compose up -d postgres-nucleo kafka-init
 ```
 
-Serviços e portas (ajuste conforme o seu `docker-compose.yml`):
+O `kafka-init` inicia o broker e cria o tópico `biblioteca.emprestimos`. Com a infraestrutura ativa, execute o núcleo em outro terminal:
+
+```powershell
+cd tech-challenge-biblioteca\biblioteca-nucleo
+.\mvnw.cmd spring-boot:run
+```
+
+Para subir também `api-nucleo` com Docker Compose, o build usa `biblioteca-nucleo` como contexto:
+
+```bash
+cd tech-challenge-biblioteca
+docker compose up --build api-nucleo
+```
+
+Serviços e portas definidos no Compose:
 
 | Serviço | URL |
 |---|---|
 | API Núcleo | http://localhost:8080 |
-| API Relatório | http://localhost:8081 |
-| Swagger Núcleo | http://localhost:8080/swagger-ui.html |
-| Swagger Relatório | http://localhost:8081/swagger-ui.html |
+| Kafka externo | `localhost:29092` |
+| Swagger Núcleo | http://localhost:8080/swagger-ui/index.html |
 | Health Núcleo | http://localhost:8080/actuator/health |
-| Health Relatório | http://localhost:8081/actuator/health |
 
-Para derrubar tudo e remover os volumes:
-
-```bash
-docker compose down -v
-```
-
-### Escalando o serviço de relatório
+Para parar a infraestrutura (preservando os dados nos volumes):
 
 ```bash
-docker compose up --scale api-relatorio=2
+docker compose down
 ```
 
-### Executando localmente (sem Docker para as aplicações)
-
-Suba apenas a infraestrutura:
-
-```bash
-docker compose up postgres-nucleo postgres-relatorio kafka
-```
-
-E, em cada módulo:
-
-```bash
-cd biblioteca-nucleo
-./mvnw spring-boot:run
-```
+Use `docker compose down -v` somente se também quiser apagar os dados persistidos.
 
 ### Variáveis de ambiente
 
 | Variável | Descrição | Exemplo |
 |---|---|---|
-| `SPRING_DATASOURCE_URL` | URL do banco do serviço | `jdbc:postgresql://postgres-nucleo:5432/biblioteca_nucleo` |
+| `SPRING_DATASOURCE_URL` | URL do banco; use o nome do serviço no Compose ou `localhost` ao executar a aplicação localmente | `jdbc:postgresql://localhost:5432/biblioteca_nucleo` |
 | `SPRING_DATASOURCE_USERNAME` | Usuário do banco | `biblioteca` |
 | `SPRING_DATASOURCE_PASSWORD` | Senha do banco | `biblioteca` |
-| `SPRING_KAFKA_BOOTSTRAP_SERVERS` | Endereço do Kafka | `kafka:9092` |
+| `SPRING_KAFKA_BOOTSTRAP_SERVERS` | Endereço do Kafka; para a aplicação local, use a porta externa publicada pelo Compose | `localhost:29092` |
+| `APP_KAFKA_TOPICS_EMPRESTIMOS` | Tópico usado pela outbox | `biblioteca.emprestimos` |
 
 ---
 
@@ -173,78 +165,71 @@ cd biblioteca-nucleo
 
 ## Principais endpoints
 
-### API Núcleo (`/api/v1`)
+### API Núcleo
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `POST` | `/livros` | Cadastra um livro |
-| `POST` | `/livros/lote` | Cadastra livros em lote |
-| `GET` | `/livros` | Busca livros com filtros e paginação (`titulo`, `autor`, `isbn`, `disponivel`, `page`, `size`) |
-| `GET` | `/livros/{id}` | Consulta um livro |
-| `PUT` | `/livros/{id}` | Atualiza um livro |
-| `DELETE` | `/livros/{id}` | Exclui um livro |
-| `POST` | `/usuarios` | Cadastra um usuário |
-| `GET` | `/usuarios` | Lista usuários (paginado) |
-| `GET` | `/usuarios/{id}` | Consulta um usuário |
-| `PUT` | `/usuarios/{id}` | Atualiza um usuário |
-| `DELETE` | `/usuarios/{id}` | Exclui um usuário |
-| `GET` | `/usuarios/{id}/emprestimos` | Histórico de empréstimos do usuário |
-| `POST` | `/emprestimos` | Registra um empréstimo |
-| `PATCH` | `/emprestimos/{id}/devolucao` | Registra a devolução |
-| `POST` | `/reservas` | Reserva um livro |
-
-### API Relatório (`/api/v1`)
-
-| Método | Rota | Descrição |
-|---|---|---|
-| `GET` | `/relatorios/livros-mais-emprestados` | Top 20 livros mais emprestados |
-| `GET` | `/relatorios/emprestimos-ativos` | Livros emprestados no momento e previsão de devolução |
+| `POST` | `/api/biblioteca/livros` | Cadastra um livro |
+| `GET` | `/api/biblioteca/livros` | Busca livros com filtros `nome`, `autor` e `isbn`, além de paginação |
+| `GET` | `/api/biblioteca/livros/{id}` | Consulta um livro |
+| `PUT` | `/api/biblioteca/livros/{id}` | Atualiza quantidade total e descrição |
+| `DELETE` | `/api/biblioteca/livros/{id}` | Exclui um livro |
+| `POST` | `/api/biblioteca/usuarios` | Cadastra um usuário |
+| `GET` | `/api/biblioteca/usuarios` | Lista usuários com filtros `nome`, `email`, `tipo` e `ativo`, além de paginação |
+| `GET` | `/api/biblioteca/usuarios/{id}` | Consulta um usuário |
+| `PUT` | `/api/biblioteca/usuarios/{id}` | Atualiza nome e e-mail |
+| `DELETE` | `/api/biblioteca/usuarios/{id}` | Desativa um usuário |
+| `POST` | `/api/biblioteca/emprestimo` | Registra empréstimo se houver exemplar; caso contrário, cria reserva |
+| `POST` | `/api/biblioteca/reserva` | Solicita empréstimo se houver exemplar; caso contrário, cria reserva |
+| `PUT` | `/api/biblioteca/emprestimo/{emprestimoId}/devolver` | Registra devolução do empréstimo |
 
 > A lista completa e os contratos de request/response estão no Swagger UI.
 
-### Exemplo
+### Exemplo: solicitar empréstimo
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/emprestimos \
+curl -X POST http://localhost:8080/api/biblioteca/emprestimo \
   -H "Content-Type: application/json" \
-  -d '{"usuarioId": 1, "livroId": 10}'
+  -d '{"usuarioId": "7f1c2d3e-8a9b-4c5d-9e0f-1a2b3c4d5e6f", "livroId": "1a2b3c4d-5e6f-4789-8a9b-0c1d2e3f4a5b"}'
 ```
 
 ---
 
 ## Eventos (Kafka)
 
-Tópico: `biblioteca.emprestimos` (chave da mensagem: `emprestimoId`)
+O núcleo grava eventos na tabela `outbox_event` na mesma transação que altera o empréstimo e o estoque. O relay busca os eventos pendentes e os publica no tópico `biblioteca.emprestimos`, usando o ID do empréstimo como chave. O tópico pode ser configurado por `APP_KAFKA_TOPICS_EMPRESTIMOS`.
 
 ```json
 {
   "eventId": "7f1c2d3e-8a9b-4c5d-9e0f-1a2b3c4d5e6f",
   "tipo": "EMPRESTIMO_REALIZADO",
   "ocorridoEm": "2026-10-17T14:30:00Z",
-  "emprestimoId": 123,
-  "livroId": 45,
+  "emprestimoId": "123e4567-e89b-12d3-a456-426614174000",
+  "livroId": "1a2b3c4d-5e6f-4789-8a9b-0c1d2e3f4a5b",
   "livroTitulo": "Clean Architecture",
+  "livroAutor": "Robert C. Martin",
   "livroIsbn": "9780134494166",
-  "usuarioId": 9,
+  "usuarioId": "7f1c2d3e-8a9b-4c5d-9e0f-1a2b3c4d5e6f",
+  "dataEmprestimo": "2026-10-17",
   "dataPrevistaDevolucao": "2026-10-31",
   "dataDevolucao": null
 }
 ```
 
-Tipos de evento: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`.
+Tipos emitidos: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`. A criação de reserva ainda não gera evento.
 
 ---
 
 ## Decisões de design
 
-- **Dois serviços** Usuários, livros e empréstimos compartilham regras transacionais (estoque e validação de usuário), então ficam juntos no núcleo. Relatórios têm perfil de leitura e podem evoluir de forma independente.
-- **Banco por serviço.** Cada serviço é dono dos seus dados. O relatório nunca consulta o banco do núcleo.
-- **Transactional Outbox.** O empréstimo e o evento são gravados na mesma transação do núcleo, e um relay publica no Kafka. Isso evita inconsistência entre banco e fila.
-- **Consumidor idempotente.** O serviço de relatório guarda o `eventId` processado e ignora duplicados, já que o Kafka entrega "pelo menos uma vez".
-- **Retry e Dead Letter Topic** para eventos que falham no processamento.
-- **Modelo de leitura no relatório.** O consumidor mantém tabelas de empréstimos ativos e de contagem por livro, e o job agendado gera os snapshots consolidados.
+- **Separação prevista em serviços.** Usuários, livros e empréstimos compartilham regras transacionais no núcleo. O Compose também prevê um serviço independente de relatórios, mas seu módulo não está neste checkout.
+- **Banco por serviço.** O Compose define bancos separados para núcleo e relatórios; somente o banco do núcleo pode ser verificado neste workspace.
+- **Transactional Outbox.** O empréstimo/devolução e seu evento são gravados na mesma transação do núcleo; se o Kafka estiver indisponível, o evento permanece pendente para nova tentativa.
+- **Entrega pelo menos uma vez.** Se o Kafka confirmar a publicação e o processo falhar antes de marcar o evento como publicado no banco, o relay pode publicar o mesmo evento novamente. Consumidores devem deduplicar usando `eventId`.
+- **Retenção da outbox.** O relay tenta publicar lotes de até 20 eventos a cada 5 segundos por padrão e remove eventos publicados há mais de 7 dias diariamente. Os intervalos podem ser ajustados por `app.outbox.intervalo-ms` e `app.outbox.limpeza-intervalo-ms`.
+- **Falhas persistentes no Kafka.** O relay registra a falha e tenta novamente nas execuções seguintes; o núcleo não configura uma Dead Letter Topic para a publicação da outbox.
 - **Padrões utilizados:** Ports and Adapters, Repository, Strategy (política de prazo de devolução), Specification (filtros dinâmicos) e DTO/Mapper.
-- **Consistência eventual.** Os relatórios refletem o estado do núcleo com um pequeno atraso, e essa é uma decisão consciente.
+- **Consistência eventual prevista.** Um consumidor de relatórios deverá refletir os eventos do núcleo de forma assíncrona.
 
 ---
 
@@ -259,23 +244,19 @@ Tipos de evento: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`.
 
 ## Otimização de acesso a dados
 
-- **Paginação** em todas as listagens e buscas.
-- **Índices** em `isbn`, `titulo` e `autor`, e nas chaves estrangeiras de empréstimo.
-- **Operações em lote** com `saveAll` e `hibernate.jdbc.batch_size`, além do endpoint de cadastro de livros em lote.
-- **Prevenção de N+1** com `@EntityGraph` e fetch join onde necessário.
-- **Agregações no banco.** O top 20 usa `GROUP BY` e `LIMIT` na consulta, e não processamento em memória.
-- **Streams** para o processamento de coleções no domínio e na camada de aplicação.
-- **Controle de concorrência** no estoque com lock otimista (`@Version`) ou pessimista.
+- **Paginação** nas listagens de livros e usuários.
+- **Índices** em ISBN, título, autor e chaves usadas em empréstimos e reservas.
+- **Filtros textuais** fazem escape dos curingas SQL (`%` e `_`) para que buscas parciais preservem o significado literal dos termos informados.
+- **Controle de concorrência** no estoque e na fila de reservas com bloqueios pessimistas; a verificação de limite de empréstimos também bloqueia o usuário durante a operação.
 
 ---
 
 ## Docker e escalabilidade
 
-- **Dockerfile multi-stage** em cada serviço: build com Maven e imagem final enxuta com JRE 21.
-- **Docker Compose** orquestra os dois serviços, os dois bancos PostgreSQL e o Kafka, com `healthcheck` e `depends_on`.
+- **Dockerfile multi-stage** para o núcleo: build com Maven e imagem final enxuta com JRE 21.
+- **Docker Compose** define PostgreSQL, Kafka e aplicações; neste checkout, o contexto do serviço de relatórios está ausente. Kafka de nó único com fator de replicação 1 é configuração de desenvolvimento, não alta disponibilidade.
 - **Serviços stateless:** podem ser replicados atrás de um balanceador de carga.
-- **Consumer group do Kafka:** várias réplicas do serviço de relatório dividem as partições automaticamente.
-- **Job agendado em múltiplas réplicas:** o uso de ShedLock evita execução duplicada.
+- **Relay concorrente:** `FOR UPDATE SKIP LOCKED` permite que instâncias do núcleo busquem registros pendentes sem bloquear as linhas já reservadas por outra instância.
 - **Threads virtuais** (Java 21) habilitadas para melhorar a vazão em operações de I/O.
 
 ### Evolução futura
@@ -290,12 +271,11 @@ Tipos de evento: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`.
 ## Testes
 
 ```bash
-# em cada módulo
+# na pasta tech-challenge-biblioteca/biblioteca-nucleo (Linux/macOS)
 ./mvnw test
 ```
 
-- **Unitários** para regras de domínio (empréstimo, devolução, prazo, estoque).
-- **Integração** com Testcontainers (PostgreSQL e Kafka reais).
+No Windows, execute `.\mvnw.cmd test` no PowerShell. A suíte inclui testes unitários de domínio/serviços e um teste de contexto com PostgreSQL e Kafka via Testcontainers; esse teste de integração é ignorado automaticamente quando Docker não está disponível.
 
 ---
 
