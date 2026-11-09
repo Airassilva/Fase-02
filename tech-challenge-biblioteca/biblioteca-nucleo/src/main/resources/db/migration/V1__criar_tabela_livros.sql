@@ -1,4 +1,4 @@
-CREATE TABLE livros
+CREATE TABLE livro
 (
     id UUID PRIMARY KEY,
     titulo                VARCHAR(255) NOT NULL,
@@ -10,5 +10,5 @@ CREATE TABLE livros
         )
 );
 
-CREATE INDEX idx_livros_titulo ON livros (titulo);
-CREATE INDEX idx_livros_autor ON livros (autor);
+CREATE INDEX idx_livro_titulo ON livro (titulo);
+CREATE INDEX idx_livro_autor ON livro (autor);

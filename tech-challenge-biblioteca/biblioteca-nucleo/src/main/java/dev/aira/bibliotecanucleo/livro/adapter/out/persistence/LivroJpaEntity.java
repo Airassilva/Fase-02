@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 import java.util.UUID;
 
 @Entity
-@Table(name = "livros")
+@Table(name = "livro")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LivroJpaEntity {
