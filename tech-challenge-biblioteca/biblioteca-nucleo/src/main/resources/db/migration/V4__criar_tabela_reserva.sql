@@ -2,7 +2,7 @@ CREATE TABLE reserva
 (
     id UUID PRIMARY KEY,
     usuario_id UUID NOT NULL REFERENCES usuario (id),
-    livro_id UUID NOT NULL REFERENCES livros (id),
+    livro_id UUID NOT NULL REFERENCES livro (id),
     data_reserva TIMESTAMPTZ NOT NULL,
     status VARCHAR(20) NOT NULL,
     CONSTRAINT ck_reserva_status

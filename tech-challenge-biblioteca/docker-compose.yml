@@ -19,24 +19,6 @@ services:
       timeout: 5s
       retries: 10
 
-  postgres-relatorio:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: biblioteca_relatorio
-      POSTGRES_USER: ${POSTGRES_USER:-biblioteca}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-biblioteca}
-      TZ: UTC
-    ports:
-      - "5433:5432"
-    volumes:
-      - pgdata-relatorio:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-biblioteca} -d biblioteca_relatorio"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   kafka:
     image: apache/kafka:3.9.0
     restart: unless-stopped
@@ -129,36 +111,6 @@ services:
       - "8080:80"
     volumes:
       - ./nginx/api-nucleo.conf:/etc/nginx/conf.d/default.conf:ro
-
-  api-relatorio:
-    build:
-      context: ./biblioteca-relatorio
-    restart: unless-stopped
-    depends_on:
-      postgres-relatorio:
-        condition: service_healthy
-      kafka-init:
-        condition: service_completed_successfully
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-relatorio:5432/biblioteca_relatorio
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-biblioteca}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-biblioteca}
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_KAFKA_CONSUMER_GROUP_ID: biblioteca-relatorio
-      SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET: earliest
-      SPRING_KAFKA_CONSUMER_ENABLE_AUTO_COMMIT: "false"
-      APP_KAFKA_TOPICS_EMPRESTIMOS: biblioteca.emprestimos
-      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
-      SPRING_THREADS_VIRTUAL_ENABLED: "true"
-      TZ: UTC
-    ports:
-      - "8081-8085:8080"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:8080/actuator/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
 
 volumes:
   pgdata-nucleo:
