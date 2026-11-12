@@ -26,9 +26,9 @@ O sistema permite cadastrar livros, gerir usuários, registrar empréstimos e de
 
 ## Visão geral da arquitetura
 
-O workspace contém o serviço transacional `biblioteca-nucleo`, que usa PostgreSQL e publica eventos em Kafka por meio de uma transactional outbox. O `docker-compose.yml` também referencia um serviço `biblioteca-relatorio`; esse módulo não está presente neste checkout.
+O workspace contém dois serviços independentes, cada um com seu próprio PostgreSQL. O `biblioteca-nucleo` é transacional e publica eventos em Kafka por meio de uma transactional outbox. O `biblioteca-relatorio` consome esses eventos e mantém um modelo de leitura para consultas e snapshots de relatórios.
 
-O diagrama a seguir representa a arquitetura prevista quando o serviço de relatórios estiver disponível:
+Fluxo de dados:
 
 ```
 ┌──────────────────────────┐    evento     ┌───────┐   consome   ┌──────────────────────────┐
@@ -56,9 +56,11 @@ dev.aira.biblioteca.nucleo
 
 Regra de dependência: `adapter → application → domain`. O domínio não depende de Spring nem de JPA, e os módulos conversam entre si apenas por portas.
 
-### Serviço de relatórios
+### `biblioteca-relatorio`
 
-O Compose prevê um serviço de leitura que consumiria os eventos do núcleo e manteria seu próprio modelo de leitura. O código desse serviço não está disponível neste checkout; portanto, os endpoints de relatório descritos em versões anteriores deste README não fazem parte da API verificável aqui.
+Serviço somente de leitura do ponto de vista do negócio. O consumidor Kafka aplica eventos de empréstimo e devolução ao seu próprio modelo de leitura; a API consulta esse banco sem acessar o banco do núcleo nem chamá-lo por HTTP. O processamento deduplica eventos pelo `eventId` e tolera reentregas e eventos fora de ordem. Falhas persistentes são encaminhadas para `biblioteca.emprestimos.DLT`.
+
+Organizado em arquitetura hexagonal, com domínio Java puro e adapters separados para REST, Kafka, agendamento e persistência.
 
 ---
 
@@ -72,7 +74,7 @@ O Compose prevê um serviço de leitura que consumiria os eventos do núcleo e m
 | Migrações | Flyway |
 | Mensageria | Apache Kafka (Spring Kafka) |
 | Documentação | SpringDoc OpenAPI (Swagger UI) e Javadoc |
-| Mapeamento | MapStruct |
+| Mapeamento | MapStruct no núcleo; mapeamento manual nos relatórios |
 | Observabilidade | Spring Boot Actuator |
 | Testes | JUnit 5, Mockito, Testcontainers |
 | Contêineres | Docker e Docker Compose |
@@ -88,7 +90,8 @@ Fase-02/
 └── tech-challenge-biblioteca/
     ├── docker-compose.yml
     ├── nginx/                 gateway para o núcleo
-    └── biblioteca-nucleo/     serviço transacional
+    ├── biblioteca-nucleo/     serviço transacional
+    └── biblioteca-relatorio/  serviço de consultas e snapshots
 ```
 
 ---
@@ -100,41 +103,46 @@ Fase-02/
 - Docker e Docker Compose
 - Para rodar fora do Docker: JDK 21; o Maven Wrapper do projeto está incluído
 
-### Subindo a infraestrutura do núcleo
+### Subindo os serviços
 
-O Compose contém também uma definição para `api-relatorio`, cujo contexto (`biblioteca-relatorio`) não está presente neste workspace. Para iniciar somente a infraestrutura necessária ao núcleo:
+Para iniciar os dois serviços, bancos, Kafka e gateway:
 
 ```bash
 cd tech-challenge-biblioteca
-docker compose up -d postgres-nucleo kafka-init
+docker compose up --build api-nucleo api-relatorio api-gateway
 ```
 
-O `kafka-init` inicia o broker e cria o tópico `biblioteca.emprestimos`. Com a infraestrutura ativa, execute o núcleo em outro terminal:
+O Compose inicia o broker e cria os tópicos `biblioteca.emprestimos` e `biblioteca.emprestimos.DLT`. A API do núcleo fica atrás do gateway; a API de relatórios é publicada diretamente. Para subir somente o núcleo e sua infraestrutura:
 
 ```powershell
-cd tech-challenge-biblioteca\biblioteca-nucleo
+cd tech-challenge-biblioteca
+docker compose up --build api-gateway
+```
+
+Para executar o serviço de relatórios fora do Docker, inicie primeiro o banco de relatórios, Kafka e núcleo:
+
+```powershell
+cd tech-challenge-biblioteca
+docker compose up -d postgres-relatorio kafka-init api-nucleo
+cd biblioteca-relatorio
 .\mvnw.cmd spring-boot:run
 ```
 
-Para subir o núcleo com gateway e três instâncias da API:
-
-```bash
-cd tech-challenge-biblioteca
-docker compose up --build --scale api-nucleo=3 api-gateway
-```
-
-A API não publica portas individuais; o Nginx encaminha o tráfego para as instâncias saudáveis do núcleo. Serviços e portas:
+Serviços e portas:
 
 | Serviço | URL |
 |---|---|
 | API Núcleo (gateway) | http://localhost:8081 |
+| API Relatórios | http://localhost:8082 |
 | Kafka externo | `localhost:29092` |
 | Swagger Núcleo | http://localhost:8081/swagger-ui/index.html |
+| Swagger Relatórios | http://localhost:8082/swagger-ui.html |
 | Health Núcleo | http://localhost:8081/actuator/health |
+| Health Relatórios | http://localhost:8082/actuator/health |
 | Kafka UI | http://localhost:8090 |
 | Mailpit (caixa de e-mails de teste) | http://localhost:8025 |
 
-Para executar uma instância sem escalar, use `docker compose up --build api-gateway`; o gateway continuará disponível em `localhost:8081`.
+Para escalar horizontalmente o núcleo, use `docker compose up --build --scale api-nucleo=3 api-gateway`. As instâncias do núcleo não publicam portas individuais; o Nginx encaminha o tráfego para elas.
 
 O Mailpit recebe os avisos de atraso sem conectar a um SMTP externo. Abra http://localhost:8025 para consultar os e-mails. Para testar o job sem esperar pelo horário diário, defina `APP_EMPRESTIMOS_ATRASO_CRON="0 * * * * *"` antes de iniciar o Compose; assim ele roda a cada minuto.
 
@@ -154,10 +162,13 @@ Use `docker compose down -v` somente se também quiser apagar os dados persistid
 | `SPRING_DATASOURCE_USERNAME` | Usuário do banco | `biblioteca` |
 | `SPRING_DATASOURCE_PASSWORD` | Senha do banco | `biblioteca` |
 | `SPRING_KAFKA_BOOTSTRAP_SERVERS` | Endereço do Kafka; para a aplicação local, use a porta externa publicada pelo Compose | `localhost:29092` |
-| `APP_KAFKA_TOPICS_EMPRESTIMOS` | Tópico usado pela outbox | `biblioteca.emprestimos` |
+| `APP_KAFKA_TOPICS_EMPRESTIMOS` | Tópico de eventos de empréstimos (produtor do núcleo e consumidor de relatórios) | `biblioteca.emprestimos` |
 | `APP_EMPRESTIMOS_ATRASO_CRON` | Cron do job de notificação (UTC; padrão diário às 09:00) | `0 0 9 * * *` |
+| `APP_RELATORIO_CRON` | Cron dos snapshots no serviço de relatórios (padrão a cada 5 minutos) | `0 */5 * * * *` |
 | `SPRING_MAIL_HOST` / `SPRING_MAIL_PORT` | SMTP para envio de notificações | `mailpit` / `1025` no Compose |
 | `HIBERNATE_JDBC_BATCH_SIZE` | Quantidade máxima de instruções compatíveis agrupadas pelo Hibernate | `50` |
+
+O serviço de relatórios usa por padrão `jdbc:postgresql://localhost:5433/biblioteca_relatorio`; no Compose, aponta para `postgres-relatorio`. As credenciais do PostgreSQL são compartilhadas por padrão entre os dois bancos e podem ser alteradas com `POSTGRES_USER` e `POSTGRES_PASSWORD`.
 
 ---
 
@@ -165,7 +176,6 @@ Use `docker compose down -v` somente se também quiser apagar os dados persistid
 
 - **Swagger UI** em cada serviço, gerado pelo SpringDoc a partir dos controllers e DTOs.
 - **Especificação OpenAPI (JSON)** em `/v3/api-docs`.
-- **Javadoc** das portas de entrada (casos de uso) e das classes de domínio:
 
 ```bash
 ./mvnw javadoc:javadoc
@@ -194,6 +204,21 @@ Use `docker compose down -v` somente se também quiser apagar os dados persistid
 | `PUT` | `/api/biblioteca/emprestimo/{emprestimoId}/devolver` | Registra devolução do empréstimo |
 
 > A lista completa e os contratos de request/response estão no Swagger UI.
+
+### API Relatórios
+
+Base: `http://localhost:8082/api/v1/relatorios`.
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/livros-mais-emprestados` | Top 20 geral, ordenado pelo total de empréstimos e título |
+| `GET` | `/emprestimos-ativos?page=0&size=20` | Empréstimos em aberto, com previsão de devolução e paginação |
+| `GET` | `/semanal` | Relatório da semana vigente |
+| `GET` | `/semanal?referencia=2026-11-12` | Semana que contém a data de referência |
+
+A paginação de empréstimos aceita `page` a partir de zero e `size` entre 1 e 100. O relatório semanal considera semanas de segunda a domingo no fuso `America/Recife`, sempre inclui os sete dias e apresenta zero nos dias sem empréstimos. Inclui totais de empréstimos, devoluções, empréstimos em aberto e atrasados, além do ranking semanal. Respostas de erro de validação e conversão de parâmetros usam `ProblemDetail` (HTTP 400). `usuarioId` não é exposto nas respostas.
+
+Como o relatório é atualizado assincronamente a partir do Kafka, os totais refletem os eventos já consumidos (consistência eventual).
 
 ### Exemplo: solicitar empréstimo
 
@@ -226,20 +251,21 @@ O núcleo grava eventos na tabela `outbox_event` na mesma transação que altera
 }
 ```
 
-Tipos emitidos: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`. A criação de reserva ainda não gera evento.
+Tipos emitidos: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`. Ambos incluem os dados completos do empréstimo; a criação de reserva ainda não gera evento. O consumidor do serviço de relatórios usa o `eventId` para ignorar duplicatas e conserva os dados de devolução mesmo se o evento de empréstimo chegar depois. Mensagens malformadas ou inválidas não são retentadas; falhas retentáveis recebem até três novas tentativas com intervalo de um segundo antes de serem encaminhadas ao tópico `.DLT`.
 
 ---
 
 ## Decisões de design
 
-- **Separação prevista em serviços.** Usuários, livros e empréstimos compartilham regras transacionais no núcleo. O Compose também prevê um serviço independente de relatórios, mas seu módulo não está neste checkout.
-- **Banco por serviço.** O Compose define bancos separados para núcleo e relatórios; somente o banco do núcleo pode ser verificado neste workspace.
+- **Separação em serviços.** Usuários, livros e empréstimos compartilham regras transacionais no núcleo; o relatório é um serviço independente, baseado em eventos e com modelo de leitura próprio.
+- **Banco por serviço.** O núcleo e os relatórios usam bancos PostgreSQL separados. O serviço de relatórios obtém seus dados exclusivamente dos eventos Kafka.
 - **Transactional Outbox.** O empréstimo/devolução e seu evento são gravados na mesma transação do núcleo; se o Kafka estiver indisponível, o evento permanece pendente para nova tentativa.
 - **Entrega pelo menos uma vez.** Se o Kafka confirmar a publicação e o processo falhar antes de marcar o evento como publicado no banco, o relay pode publicar o mesmo evento novamente. Consumidores devem deduplicar usando `eventId`.
 - **Retenção da outbox.** O relay tenta publicar lotes de até 20 eventos a cada 5 segundos por padrão e remove eventos publicados há mais de 7 dias diariamente. Os intervalos podem ser ajustados por `app.outbox.intervalo-ms` e `app.outbox.limpeza-intervalo-ms`.
 - **Falhas persistentes no Kafka.** O relay registra a falha e tenta novamente nas execuções seguintes; o núcleo não configura uma Dead Letter Topic para a publicação da outbox.
 - **Padrões utilizados:** Ports and Adapters, Repository, Strategy (política de prazo de devolução), Specification (filtros dinâmicos) e DTO/Mapper.
-- **Consistência eventual prevista.** Um consumidor de relatórios deverá refletir os eventos do núcleo de forma assíncrona.
+- **Consistência eventual.** Os endpoints de relatório refletem os eventos do núcleo após o consumo assíncrono.
+- **Snapshots protegidos.** O agendador grava snapshots da semana vigente e da anterior, com upsert por tipo e início do período. ShedLock usa a tabela PostgreSQL `shedlock`, o horário do banco e o lock `gerarSnapshotsRelatorio` para evitar execução simultânea entre réplicas; o lock expira após no máximo 10 minutos.
 
 ---
 
@@ -248,6 +274,7 @@ Tipos emitidos: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`. A criação de reser
 - Instantes (como `ocorridoEm` dos eventos) são serializados em **UTC**, no formato ISO-8601 com `Z` (por exemplo, `2026-10-17T14:30:00Z`).
 - Datas de empréstimo, previsão e devolução são datas civis (`LocalDate`), serializadas em ISO-8601 como `yyyy-MM-dd`, sem horário nem offset.
 - O dia civil é determinado pelo fuso `America/Recife`; o cálculo usa a API `java.time` e um `Clock` injetado para manter as regras testáveis.
+- O período semanal vai de segunda a domingo nesse fuso. Para a semana vigente, dias futuros aparecem com total zero; empréstimos atrasados são os que estão em aberto e têm previsão anterior à data atual local.
 - Os contêineres usam `TZ=UTC` para processos e logs; isso não altera o fuso de negócio explícito do `Clock`.
 
 ---
@@ -267,13 +294,14 @@ Tipos emitidos: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`. A criação de reser
 
 - **Dockerfile multi-stage** para o núcleo: build com Maven e imagem final enxuta com JRE 21.
 - **Docker Compose** permite escalar horizontalmente o núcleo com `--scale api-nucleo=3`, atrás de um gateway Nginx. PostgreSQL e Kafka locais continuam sendo instâncias únicas; o cenário demonstra escalabilidade da API, não alta disponibilidade da infraestrutura.
+- **Snapshots escaláveis:** réplicas de `api-relatorio` podem compartilhar o banco PostgreSQL; ShedLock coordena a execução do snapshot para que apenas uma réplica execute a tarefa por vez.
 - **Relay concorrente:** `FOR UPDATE SKIP LOCKED` permite que instâncias do núcleo busquem registros pendentes sem bloquear as linhas já reservadas por outra instância.
 - **Threads virtuais** (Java 21) habilitadas para melhorar a vazão em operações de I/O.
 - **Avisos de atraso:** o núcleo verifica diariamente às 09:00 UTC os empréstimos vencidos e envia e-mail pelo Mailpit. Cada empréstimo é notificado no máximo uma vez a cada 7 dias; a última notificação só é gravada após o envio bem-sucedido. O ShedLock usa PostgreSQL para impedir que réplicas enviem o mesmo lote simultaneamente.
 
 ### Produção
 
-O Compose é destinado ao desenvolvimento e à demonstração de escala horizontal da API. Para produção, use PostgreSQL gerenciado com backup/alta disponibilidade e Kafka gerenciado ou cluster com replicação adequada; configure segredos fora do Compose, limites de CPU/memória, monitoramento e autoscaling no orquestrador. O fator de replicação 1 do Kafka local não protege contra indisponibilidade do broker. O módulo `biblioteca-relatorio` também não está presente neste checkout.
+O Compose é destinado ao desenvolvimento e à demonstração de escala horizontal da API. Para produção, use PostgreSQL gerenciado com backup/alta disponibilidade e Kafka gerenciado ou cluster com replicação adequada; configure segredos fora do Compose, limites de CPU/memória, monitoramento e autoscaling no orquestrador. O fator de replicação 1 do Kafka local não protege contra indisponibilidade do broker. Se houver múltiplas réplicas de relatórios, todas devem compartilhar o banco do serviço, incluindo a tabela ShedLock.
 
 ### Evolução futura
 
@@ -286,11 +314,11 @@ O Compose é destinado ao desenvolvimento e à demonstração de escala horizont
 ## Testes
 
 ```bash
-# na pasta tech-challenge-biblioteca/biblioteca-nucleo (Linux/macOS)
+# na pasta tech-challenge-biblioteca/biblioteca-nucleo ou biblioteca-relatorio (Linux/macOS)
 ./mvnw test
 ```
 
-No Windows, execute `.\mvnw.cmd test` no PowerShell. A suíte inclui testes unitários de domínio/serviços e um teste de contexto com PostgreSQL e Kafka via Testcontainers; esse teste de integração é ignorado automaticamente quando Docker não está disponível.
+No Windows, execute `.\mvnw.cmd test` no PowerShell, na pasta do módulo desejado. A suíte de relatórios inclui testes unitários de domínio e serviços, contrato do evento e testes de integração com PostgreSQL e Kafka via Testcontainers; os testes de integração são ignorados quando Docker não está disponível.
 
 ---
 
