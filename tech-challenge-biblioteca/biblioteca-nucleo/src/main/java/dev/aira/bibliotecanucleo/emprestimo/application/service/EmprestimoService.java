@@ -52,35 +52,6 @@ public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUs
     private final NotificadorAtrasoPort notificadorAtraso;
 
     @Override
-    public void notificarEmprestimosAtrasados() {
-        LocalDate hoje = LocalDate.now(clock);
-        Instant agora = clock.instant();
-        var emprestimosAtrasados = emprestimoRepository.buscarAtrasados(
-                hoje,
-                agora.minus(Duration.ofDays(7))
-        );
-
-        for (var emprestimo : emprestimosAtrasados) {
-            try {
-                var usuario = usuarioGateway.buscarResumo(emprestimo.usuarioId());
-                var livro = livroGateway.buscarLivro(emprestimo.livroId());
-                int diasAtraso = Math.toIntExact(ChronoUnit.DAYS.between(emprestimo.dataPrevistaDevolucao(), hoje)
-                );
-                notificadorAtraso.enviar(new NotificadorAtrasoPort.NotificacaoAtraso(
-                        usuario.nome(),
-                        usuario.email(),
-                        livro.titulo(),
-                        emprestimo.dataPrevistaDevolucao(),
-                        diasAtraso
-                ));
-                emprestimoRepository.registrarNotificacaoAtraso(emprestimo.id(), agora);
-            } catch (RuntimeException exception) {
-                log.error("Falha ao enviar notificação do empréstimo atrasado {}", emprestimo.id(), exception);
-            }
-        }
-    }
-
-    @Override
     @Transactional
     public SolicitacaoLivroDetalhe emprestarLivro(CadastrarEmprestimoCommand command) {
         Objects.requireNonNull(command, "A solicitação de empréstimo é obrigatória");
@@ -218,5 +189,34 @@ public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUs
                 reservaSalva.getDataReserva(),
                 reservaSalva.getStatus()
         ));
+    }
+
+    @Override
+    public void notificarEmprestimosAtrasados() {
+        LocalDate hoje = LocalDate.now(clock);
+        Instant agora = clock.instant();
+        var emprestimosAtrasados = emprestimoRepository.buscarAtrasados(
+                hoje,
+                agora.minus(Duration.ofDays(7))
+        );
+
+        for (var emprestimo : emprestimosAtrasados) {
+            try {
+                var usuario = usuarioGateway.buscarResumo(emprestimo.usuarioId());
+                var livro = livroGateway.buscarLivro(emprestimo.livroId());
+                int diasAtraso = Math.toIntExact(ChronoUnit.DAYS.between(emprestimo.dataPrevistaDevolucao(), hoje)
+                );
+                notificadorAtraso.enviar(new NotificadorAtrasoPort.NotificacaoAtraso(
+                        usuario.nome(),
+                        usuario.email(),
+                        livro.titulo(),
+                        emprestimo.dataPrevistaDevolucao(),
+                        diasAtraso
+                ));
+                emprestimoRepository.registrarNotificacaoAtraso(emprestimo.id(), agora);
+            } catch (RuntimeException exception) {
+                log.error("Falha ao enviar notificação do empréstimo atrasado {}", emprestimo.id(), exception);
+            }
+        }
     }
 }
