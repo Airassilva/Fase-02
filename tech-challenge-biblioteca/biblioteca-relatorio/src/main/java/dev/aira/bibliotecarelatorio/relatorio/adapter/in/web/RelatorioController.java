@@ -21,7 +21,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/relatorios")
+@RequestMapping("/api/relatorios")
 @Tag(name = "Relatórios")
 public class RelatorioController {
 
