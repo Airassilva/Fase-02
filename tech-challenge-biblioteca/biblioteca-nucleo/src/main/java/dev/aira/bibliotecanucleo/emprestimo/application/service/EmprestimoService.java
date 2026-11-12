@@ -6,6 +6,7 @@ import dev.aira.bibliotecanucleo.emprestimo.application.model.ReservaDetalhe;
 import dev.aira.bibliotecanucleo.emprestimo.application.model.SolicitacaoLivroDetalhe;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.EmprestimoNaoEncontradoException;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.EmprestimoNaoPertenceAoUsuarioException;
+import dev.aira.bibliotecanucleo.emprestimo.application.exception.EmprestimoAtivoJaExisteException;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.LimiteEmprestimosAtingidoException;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.ReservaDisponivelParaOutroUsuarioException;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.ReservaJaAbertaException;
@@ -122,13 +123,16 @@ public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUs
         if (!usuario.ativo()) {
             throw new UsuarioInativoParaEmprestimoException(usuarioId);
         }
-
         var livro = livroGateway.buscarLivro(livroId);
         if (livro == null) {
             throw new IllegalStateException("O gateway de livro retornou um livro inexistente");
         }
 
         boolean exemplarRetirado = livroGateway.retirarExemplar(livroId);
+        if (emprestimoRepository.existeEmprestimoAtivo(usuarioId, livroId)) {
+            throw new EmprestimoAtivoJaExisteException(usuarioId, livroId);
+        }
+
         var reservaDisponivel = emprestimoRepository.buscarReservaDisponivel(livroId);
         if (reservaDisponivel.isPresent()
                 && !reservaDisponivel.get().getUsuarioId().equals(usuarioId)) {

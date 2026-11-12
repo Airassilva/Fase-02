@@ -23,5 +23,7 @@ public interface EmprestimoRepositoryPort {
 
     long contarEmprestimosAtivos(UUID usuarioId);
 
+    boolean existeEmprestimoAtivo(UUID usuarioId, UUID livroId);
+
     boolean existeReservaAberta(UUID usuarioId, UUID livroId);
 }

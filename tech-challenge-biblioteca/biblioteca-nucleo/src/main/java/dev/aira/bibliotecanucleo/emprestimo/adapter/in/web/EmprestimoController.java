@@ -59,7 +59,7 @@ public class EmprestimoController {
     @ApiResponse(responseCode = "403", description = "Empréstimo não pertence ao usuário informado")
     @ApiResponse(responseCode = "404", description = "Empréstimo não encontrado")
     @ApiResponse(responseCode = "409", description = "Empréstimo já foi devolvido")
-    @PutMapping("/emprestimo/{emprestimoId}/devolver")
+    @PutMapping("/emprestimo/{emprestimoId}")
     public ResponseEntity<EmprestimoResponse> devolverLivro(@PathVariable UUID emprestimoId, @Valid @RequestBody UsuarioOperacaoRequest request) {
         var detalhe = devolverLivroUseCase.devolverLivro(emprestimoId, request.usuarioId());
         return ResponseEntity.ok(mapper.toResponse(detalhe));

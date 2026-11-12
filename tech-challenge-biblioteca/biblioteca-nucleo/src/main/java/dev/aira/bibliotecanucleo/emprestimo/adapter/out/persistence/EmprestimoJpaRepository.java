@@ -25,6 +25,12 @@ public interface EmprestimoJpaRepository extends JpaRepository<EmprestimoJpaEnti
             StatusEmprestimo status
     );
 
+    boolean existsByUsuarioIdAndLivroIdAndStatusAndDataDevolucaoIsNull(
+            UUID usuarioId,
+            UUID livroId,
+            StatusEmprestimo status
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select emprestimo from EmprestimoJpaEntity emprestimo where emprestimo.id = :id")
     Optional<EmprestimoJpaEntity> buscarPorIdComBloqueio(UUID id);

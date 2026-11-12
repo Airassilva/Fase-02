@@ -3,6 +3,7 @@ package dev.aira.bibliotecanucleo.emprestimo.application.service;
 import dev.aira.bibliotecanucleo.emprestimo.application.model.TipoSolicitacaoLivro;
 import dev.aira.bibliotecanucleo.emprestimo.application.model.EmprestimoEvento;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.LimiteEmprestimosAtingidoException;
+import dev.aira.bibliotecanucleo.emprestimo.application.exception.EmprestimoAtivoJaExisteException;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.ReservaDisponivelParaOutroUsuarioException;
 import dev.aira.bibliotecanucleo.emprestimo.application.exception.ReservaJaAbertaException;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.in.EmprestarLivroUseCase.CadastrarEmprestimoCommand;
@@ -230,6 +231,21 @@ class EmprestimoServiceTest {
         );
         verify(livroGateway).retirarExemplar(LIVRO_ID);
         verify(repository, never()).salvarEmprestimo(any(Emprestimo.class));
+    }
+
+    @Test
+    void deveImpedirUsuarioDeTerMaisDeUmEmprestimoAtivoDoMesmoLivro() {
+        when(repository.existeEmprestimoAtivo(USUARIO_ID, LIVRO_ID)).thenReturn(true);
+
+        var comando = new CadastrarEmprestimoCommand(LIVRO_ID, USUARIO_ID);
+
+        assertThrows(
+                EmprestimoAtivoJaExisteException.class,
+                () -> service.emprestarLivro(comando)
+        );
+        verify(livroGateway).retirarExemplar(LIVRO_ID);
+        verify(repository, never()).salvarEmprestimo(any(Emprestimo.class));
+        verify(repository, never()).salvarReserva(any(Reserva.class));
     }
 
     @Test

@@ -95,6 +95,15 @@ public class EmprestimoPersistenceAdapter implements EmprestimoRepositoryPort {
     }
 
     @Override
+    public boolean existeEmprestimoAtivo(UUID usuarioId, UUID livroId) {
+        return emprestimoJpaRepository.existsByUsuarioIdAndLivroIdAndStatusAndDataDevolucaoIsNull(
+                usuarioId,
+                livroId,
+                StatusEmprestimo.ATIVO
+        );
+    }
+
+    @Override
     public boolean existeReservaAberta(UUID usuarioId, UUID livroId) {
         return reservaJpaRepository.existsByUsuarioIdAndLivroIdAndStatusIn(
                 usuarioId,
