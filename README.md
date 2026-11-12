@@ -73,7 +73,7 @@ Organizado em arquitetura hexagonal, com domínio Java puro e adapters separados
 | Persistência | Spring Data JPA, Hibernate, PostgreSQL |
 | Migrações | Flyway |
 | Mensageria | Apache Kafka (Spring Kafka) |
-| Documentação | SpringDoc OpenAPI (Swagger UI) e Javadoc |
+| Documentação | SpringDoc OpenAPI (Swagger UI) |
 | Mapeamento | MapStruct no núcleo; mapeamento manual nos relatórios |
 | Observabilidade | Spring Boot Actuator |
 | Testes | JUnit 5, Mockito, Testcontainers |
