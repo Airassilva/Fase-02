@@ -8,6 +8,11 @@ public interface UsuarioGateway {
 
     UsuarioInfo buscarUsuarioParaEmprestimo(UUID usuarioId);
 
+    UsuarioResumo buscarResumo(UUID usuarioId);
+
     record UsuarioInfo(UUID id, String nome, Period prazoEmprestimo, int limiteEmprestimosAtivos, boolean ativo) {
+    }
+
+    record UsuarioResumo(UUID id, String nome, String email) {
     }
 }

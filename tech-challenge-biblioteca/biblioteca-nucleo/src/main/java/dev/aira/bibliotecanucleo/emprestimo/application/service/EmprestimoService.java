@@ -14,23 +14,34 @@ import dev.aira.bibliotecanucleo.emprestimo.application.exception.UsuarioInativo
 import dev.aira.bibliotecanucleo.emprestimo.application.port.in.EmprestarLivroUseCase;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.in.ReservarLivroUseCase;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.in.DevolverLivroUseCase;
+import dev.aira.bibliotecanucleo.emprestimo.application.port.in.NotificarEmprestimosAtrasadosUseCase;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EmprestimoRepositoryPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EmprestimoUnitOfWork;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EventoEmprestimoPublisherPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.LivroGateway;
+import dev.aira.bibliotecanucleo.emprestimo.application.port.out.NotificadorAtrasoPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.UsuarioGateway;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.Emprestimo;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.PoliticaPrazo;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.Reserva;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 
-public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUseCase, DevolverLivroUseCase {
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUseCase, DevolverLivroUseCase, NotificarEmprestimosAtrasadosUseCase {
+
     private final EmprestimoRepositoryPort emprestimoRepository;
     private final EventoEmprestimoPublisherPort eventoEmprestimoPublisher;
     private final LivroGateway livroGateway;
@@ -38,21 +49,35 @@ public class EmprestimoService implements EmprestarLivroUseCase, ReservarLivroUs
     private final PoliticaPrazo politicaPrazo;
     private final EmprestimoUnitOfWork unitOfWork;
     private final Clock clock;
+    private final NotificadorAtrasoPort notificadorAtraso;
 
-    public EmprestimoService(
-            EmprestimoRepositoryPort emprestimoRepository, EventoEmprestimoPublisherPort eventoEmprestimoPublisher,
-            LivroGateway livroGateway,
-            UsuarioGateway usuarioGateway,
-            PoliticaPrazo politicaPrazo,
-            EmprestimoUnitOfWork unitOfWork,
-            Clock clock) {
-        this.emprestimoRepository = emprestimoRepository;
-        this.eventoEmprestimoPublisher = eventoEmprestimoPublisher;
-        this.livroGateway = livroGateway;
-        this.usuarioGateway = usuarioGateway;
-        this.politicaPrazo = politicaPrazo;
-        this.unitOfWork = unitOfWork;
-        this.clock = clock;
+    @Override
+    public void notificarEmprestimosAtrasados() {
+        LocalDate hoje = LocalDate.now(clock);
+        Instant agora = clock.instant();
+        var emprestimosAtrasados = emprestimoRepository.buscarAtrasados(
+                hoje,
+                agora.minus(Duration.ofDays(7))
+        );
+
+        for (var emprestimo : emprestimosAtrasados) {
+            try {
+                var usuario = usuarioGateway.buscarResumo(emprestimo.usuarioId());
+                var livro = livroGateway.buscarLivro(emprestimo.livroId());
+                int diasAtraso = Math.toIntExact(ChronoUnit.DAYS.between(emprestimo.dataPrevistaDevolucao(), hoje)
+                );
+                notificadorAtraso.enviar(new NotificadorAtrasoPort.NotificacaoAtraso(
+                        usuario.nome(),
+                        usuario.email(),
+                        livro.titulo(),
+                        emprestimo.dataPrevistaDevolucao(),
+                        diasAtraso
+                ));
+                emprestimoRepository.registrarNotificacaoAtraso(emprestimo.id(), agora);
+            } catch (RuntimeException exception) {
+                log.error("Falha ao enviar notificação do empréstimo atrasado {}", emprestimo.id(), exception);
+            }
+        }
     }
 
     @Override

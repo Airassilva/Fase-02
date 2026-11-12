@@ -73,6 +73,12 @@ services:
     ports:
       - "8090:8080"
 
+  mailpit:
+    image: axllent/mailpit:v1.27.8
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+
   api-nucleo:
     build:
       context: ./biblioteca-nucleo
@@ -82,12 +88,17 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+      mailpit:
+        condition: service_started
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-nucleo:5432/biblioteca_nucleo
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-biblioteca}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-biblioteca}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_KAFKA_PRODUCER_ACKS: all
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: 1025
+      APP_EMPRESTIMOS_ATRASO_CRON: "${APP_EMPRESTIMOS_ATRASO_CRON:-0 0 9 * * *}"
       APP_KAFKA_TOPICS_EMPRESTIMOS: biblioteca.emprestimos
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_THREADS_VIRTUAL_ENABLED: "true"

@@ -127,13 +127,16 @@ A API não publica portas individuais; o Nginx encaminha o tráfego para as inst
 
 | Serviço | URL |
 |---|---|
-| API Núcleo (gateway) | http://localhost:8080 |
+| API Núcleo (gateway) | http://localhost:8081 |
 | Kafka externo | `localhost:29092` |
-| Swagger Núcleo | http://localhost:8080/swagger-ui/index.html |
-| Health Núcleo | http://localhost:8080/actuator/health |
+| Swagger Núcleo | http://localhost:8081/swagger-ui/index.html |
+| Health Núcleo | http://localhost:8081/actuator/health |
 | Kafka UI | http://localhost:8090 |
+| Mailpit (caixa de e-mails de teste) | http://localhost:8025 |
 
-Para executar uma instância sem escalar, use `docker compose up --build api-gateway`; o gateway continuará disponível em `localhost:8080`.
+Para executar uma instância sem escalar, use `docker compose up --build api-gateway`; o gateway continuará disponível em `localhost:8081`.
+
+O Mailpit recebe os avisos de atraso sem conectar a um SMTP externo. Abra http://localhost:8025 para consultar os e-mails. Para testar o job sem esperar pelo horário diário, defina `APP_EMPRESTIMOS_ATRASO_CRON="0 * * * * *"` antes de iniciar o Compose; assim ele roda a cada minuto.
 
 Para parar a infraestrutura (preservando os dados nos volumes):
 
@@ -152,6 +155,8 @@ Use `docker compose down -v` somente se também quiser apagar os dados persistid
 | `SPRING_DATASOURCE_PASSWORD` | Senha do banco | `biblioteca` |
 | `SPRING_KAFKA_BOOTSTRAP_SERVERS` | Endereço do Kafka; para a aplicação local, use a porta externa publicada pelo Compose | `localhost:29092` |
 | `APP_KAFKA_TOPICS_EMPRESTIMOS` | Tópico usado pela outbox | `biblioteca.emprestimos` |
+| `APP_EMPRESTIMOS_ATRASO_CRON` | Cron do job de notificação (UTC; padrão diário às 09:00) | `0 0 9 * * *` |
+| `SPRING_MAIL_HOST` / `SPRING_MAIL_PORT` | SMTP para envio de notificações | `mailpit` / `1025` no Compose |
 | `HIBERNATE_JDBC_BATCH_SIZE` | Quantidade máxima de instruções compatíveis agrupadas pelo Hibernate | `50` |
 
 ---
@@ -193,7 +198,7 @@ Use `docker compose down -v` somente se também quiser apagar os dados persistid
 ### Exemplo: solicitar empréstimo
 
 ```bash
-curl -X POST http://localhost:8080/api/biblioteca/emprestimo \
+curl -X POST http://localhost:8081/api/biblioteca/emprestimo \
   -H "Content-Type: application/json" \
   -d '{"usuarioId": "7f1c2d3e-8a9b-4c5d-9e0f-1a2b3c4d5e6f", "livroId": "1a2b3c4d-5e6f-4789-8a9b-0c1d2e3f4a5b"}'
 ```
@@ -264,6 +269,7 @@ Tipos emitidos: `EMPRESTIMO_REALIZADO` e `LIVRO_DEVOLVIDO`. A criação de reser
 - **Docker Compose** permite escalar horizontalmente o núcleo com `--scale api-nucleo=3`, atrás de um gateway Nginx. PostgreSQL e Kafka locais continuam sendo instâncias únicas; o cenário demonstra escalabilidade da API, não alta disponibilidade da infraestrutura.
 - **Relay concorrente:** `FOR UPDATE SKIP LOCKED` permite que instâncias do núcleo busquem registros pendentes sem bloquear as linhas já reservadas por outra instância.
 - **Threads virtuais** (Java 21) habilitadas para melhorar a vazão em operações de I/O.
+- **Avisos de atraso:** o núcleo verifica diariamente às 09:00 UTC os empréstimos vencidos e envia e-mail pelo Mailpit. Cada empréstimo é notificado no máximo uma vez a cada 7 dias; a última notificação só é gravada após o envio bem-sucedido. O ShedLock usa PostgreSQL para impedir que réplicas enviem o mesmo lote simultaneamente.
 
 ### Produção
 

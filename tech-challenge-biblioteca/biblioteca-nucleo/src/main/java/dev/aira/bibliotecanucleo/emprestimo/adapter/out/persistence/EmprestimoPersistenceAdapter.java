@@ -1,5 +1,6 @@
 package dev.aira.bibliotecanucleo.emprestimo.adapter.out.persistence;
 
+import dev.aira.bibliotecanucleo.emprestimo.application.model.EmprestimoAtrasado;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EmprestimoRepositoryPort;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.Emprestimo;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.Reserva;
@@ -8,6 +9,8 @@ import dev.aira.bibliotecanucleo.emprestimo.domain.model.StatusReserva;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
+import java.time.LocalDate;
 
 public class EmprestimoPersistenceAdapter implements EmprestimoRepositoryPort {
     private static final List<StatusReserva> STATUS_RESERVA_ABERTA =
@@ -110,5 +113,30 @@ public class EmprestimoPersistenceAdapter implements EmprestimoRepositoryPort {
                 livroId,
                 STATUS_RESERVA_ABERTA
         );
+    }
+
+    @Override
+    public List<EmprestimoAtrasado> buscarAtrasados(LocalDate hoje, Instant notificadoAntes) {
+        return emprestimoJpaRepository.findAtivosAtrasados(
+                        hoje,
+                        notificadoAntes,
+                        StatusEmprestimo.ATIVO
+                )
+                .stream()
+                .map(emprestimo -> new EmprestimoAtrasado(
+                        emprestimo.getId(),
+                        emprestimo.getUsuarioId(),
+                        emprestimo.getLivroId(),
+                        emprestimo.getDataPrevistaDevolucao()
+                ))
+                .toList();
+    }
+
+    @Override
+    public void registrarNotificacaoAtraso(UUID emprestimoId, Instant notificadoEm) {
+        int atualizados = emprestimoJpaRepository.registrarNotificacaoAtraso(emprestimoId, notificadoEm);
+        if (atualizados != 1) {
+            throw new IllegalStateException("Empréstimo não encontrado ao registrar notificação: " + emprestimoId);
+        }
     }
 }

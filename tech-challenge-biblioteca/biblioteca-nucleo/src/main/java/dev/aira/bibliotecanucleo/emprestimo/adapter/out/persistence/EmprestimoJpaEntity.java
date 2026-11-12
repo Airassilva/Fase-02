@@ -15,6 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -41,6 +42,9 @@ public class EmprestimoJpaEntity {
 
     @Column(name = "data_devolucao")
     private LocalDate dataDevolucao;
+
+    @Column(name = "ultima_notificacao_em")
+    private Instant ultimaNotificacaoEm;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

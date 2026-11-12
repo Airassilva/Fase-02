@@ -11,7 +11,9 @@ import dev.aira.bibliotecanucleo.emprestimo.application.port.in.ReservarLivroUse
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EmprestimoRepositoryPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.EventoEmprestimoPublisherPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.LivroGateway;
+import dev.aira.bibliotecanucleo.emprestimo.application.port.out.NotificadorAtrasoPort;
 import dev.aira.bibliotecanucleo.emprestimo.application.port.out.UsuarioGateway;
+import dev.aira.bibliotecanucleo.emprestimo.application.model.EmprestimoAtrasado;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.Emprestimo;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.PoliticaPrazo;
 import dev.aira.bibliotecanucleo.emprestimo.domain.model.Reserva;
@@ -34,6 +36,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,6 +51,7 @@ class EmprestimoServiceTest {
     private EventoEmprestimoPublisherPort publisherPort;
     private LivroGateway livroGateway;
     private UsuarioGateway usuarioGateway;
+    private NotificadorAtrasoPort notificadorAtraso;
     private EmprestimoService service;
 
     @BeforeEach
@@ -55,6 +60,7 @@ class EmprestimoServiceTest {
         publisherPort = mock(EventoEmprestimoPublisherPort.class);
         livroGateway = mock(LivroGateway.class);
         usuarioGateway = mock(UsuarioGateway.class);
+        notificadorAtraso = mock(NotificadorAtrasoPort.class);
         EmprestimoUnitOfWork unitOfWork = new EmprestimoUnitOfWork() {
             @Override
             public <T> T executar(java.util.function.Supplier<T> operacao) {
@@ -69,7 +75,8 @@ class EmprestimoServiceTest {
                 usuarioGateway,
                 politicaPrazo,
                 unitOfWork,
-                CLOCK
+                CLOCK,
+                notificadorAtraso
         );
 
         var usuario = new UsuarioGateway.UsuarioInfo(
@@ -235,6 +242,7 @@ class EmprestimoServiceTest {
 
     @Test
     void deveImpedirUsuarioDeTerMaisDeUmEmprestimoAtivoDoMesmoLivro() {
+        givenLivro();
         when(repository.existeEmprestimoAtivo(USUARIO_ID, LIVRO_ID)).thenReturn(true);
 
         var comando = new CadastrarEmprestimoCommand(LIVRO_ID, USUARIO_ID);
@@ -246,6 +254,34 @@ class EmprestimoServiceTest {
         verify(livroGateway).retirarExemplar(LIVRO_ID);
         verify(repository, never()).salvarEmprestimo(any(Emprestimo.class));
         verify(repository, never()).salvarReserva(any(Reserva.class));
+    }
+
+    @Test
+    void notificacaoAtrasadaRegistraSucessoEContinuaAposFalhaDeEnvio() {
+        UUID primeiroEmprestimoId = UUID.randomUUID();
+        UUID segundoEmprestimoId = UUID.randomUUID();
+        UUID primeiroUsuarioId = UUID.randomUUID();
+        UUID segundoUsuarioId = UUID.randomUUID();
+        var dataPrevista = LocalDate.of(2026, 11, 1);
+        when(repository.buscarAtrasados(LocalDate.of(2026, 11, 2), AGORA.minusSeconds(7 * 24 * 60 * 60L)))
+                .thenReturn(java.util.List.of(
+                        new EmprestimoAtrasado(primeiroEmprestimoId, primeiroUsuarioId, LIVRO_ID, dataPrevista),
+                        new EmprestimoAtrasado(segundoEmprestimoId, segundoUsuarioId, LIVRO_ID, dataPrevista)
+                ));
+        when(usuarioGateway.buscarResumo(primeiroUsuarioId))
+                .thenReturn(new UsuarioGateway.UsuarioResumo(primeiroUsuarioId, "Falha", "falha@example.com"));
+        when(usuarioGateway.buscarResumo(segundoUsuarioId))
+                .thenReturn(new UsuarioGateway.UsuarioResumo(segundoUsuarioId, "Sucesso", "sucesso@example.com"));
+        givenLivro();
+        doThrow(new IllegalStateException("SMTP indisponível"))
+                .when(notificadorAtraso)
+                .enviar(argThat(notificacao -> notificacao.emailUsuario().equals("falha@example.com")));
+
+        service.notificarEmprestimosAtrasados();
+
+        verify(repository, never()).registrarNotificacaoAtraso(primeiroEmprestimoId, AGORA);
+        verify(repository).registrarNotificacaoAtraso(segundoEmprestimoId, AGORA);
+        verify(notificadorAtraso, times(2)).enviar(any(NotificadorAtrasoPort.NotificacaoAtraso.class));
     }
 
     @Test
